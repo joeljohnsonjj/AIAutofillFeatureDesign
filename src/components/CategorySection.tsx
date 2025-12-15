@@ -1,7 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
-import { Search, Eye, Check, X } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Sparkles, ChevronDown, X, FileText, Maximize2 } from 'lucide-react';
 import { FormField } from '../App';
-import { GhostFormField } from './GhostFormField';
 
 interface CategorySectionProps {
   category: string;
@@ -9,134 +8,267 @@ interface CategorySectionProps {
   fields: FormField[];
   formData: Record<string, string>;
   onFieldChange: (fieldId: string, value: string) => void;
-  aiMode?: boolean;
-  ghostValues?: Record<string, string>;
-  onAcceptGhost?: (fieldId: string) => void;
-  onFieldSearch?: (fieldId: string, value: string) => void;
 }
 
 interface PDFReference {
   page: number;
   segment: string;
   context: string;
+  snippet: string;
 }
 
-interface AIResponse {
+interface AIOption {
   id: string;
-  title: string;
-  summary: string;
-  fullDetails: string;
-  fieldMappings: Record<string, string>;
-  previewSections?: string[];
-  citation?: string;
+  value: string;
+  description: string;
+  confidence: number;
   pdfReferences?: PDFReference[];
+  citation?: string;
 }
 
-// Mock AI responses based on search quer
-const getAIResponses = (query: string, category: string): AIResponse[] => {
-  if (!query.trim()) return [];
+interface FieldOptions {
+  [fieldId: string]: AIOption[];
+}
 
-  const responses: Record<string, AIResponse[]> = {
-    maintenance: [
-      {
-        id: '1',
-        title: 'Owner Responsibility - Structural & Systems',
-        summary: 'Property owner responsible for all structural repairs and major building systems',
-        citation: 'Source: State Commercial Code §45.2(b), Building Maintenance Standards',
-        fieldMappings: {
-          responsibleParty: 'Property Owner',
-          maintenanceOwnerResponsibility: 'Structural repairs, roof maintenance, HVAC systems, and major plumbing',
-          maintenanceReasoning: 'Standard commercial property allocation per state law. Owner retains responsibility for major systems and structural elements while tenant handles day-to-day maintenance.',
+// Mock AI suggestions from PDF
+const getPDFSuggestions = (category: string): FieldOptions => {
+  const suggestions: Record<string, FieldOptions> = {
+    maintenance: {
+      responsibleParty: [
+        {
+          id: '1',
+          value: 'Property Owner',
+          description: 'Property owner responsible for all structural repairs and major building systems',
+          confidence: 95,
+          citation: 'Section 3.2, Paragraph 1',
+          pdfReferences: [
+            {
+              page: 12,
+              segment: 'Property Owner',
+              context: 'Section 3.2: The Property Owner shall be responsible for all structural repairs, including but not limited to foundation work, load-bearing walls, and roof maintenance.',
+              snippet: 'The Property Owner shall be responsible for all structural repairs, including but not limited to foundation work, load-bearing walls, and roof maintenance. This includes ensuring the building envelope remains weathertight and all major building systems are maintained in good working order.'
+            }
+          ]
         },
-        pdfReferences: [
-          {
-            page: 12,
-            segment: 'Property Owner',
-            context: 'Section 3.2: The Property Owner shall be responsible for all structural repairs, including but not limited to foundation work, load-bearing walls, and roof maintenance.'
-          },
-          {
-            page: 15,
-            segment: 'Structural repairs, roof maintenance, HVAC systems',
-            context: 'Article 5.1: Owner responsibilities include structural repairs, complete roof maintenance and replacement, all HVAC systems servicing and repair, and major plumbing infrastructure.'
-          },
-          {
-            page: 23,
-            segment: 'Standard commercial property allocation per state law',
-            context: 'Legal Framework: Standard commercial property allocation per state law §45.2(b) requires owner to retain responsibility for major systems and structural elements while tenant handles day-to-day maintenance.'
-          }
-        ],
-        previewSections: ['Maintenance'],
-      },
-      {
-        id: '2',
-        title: 'Triple Net (NNN) Lease Structure',
-        summary: 'Tenant assumes responsibility for most operational costs in NNN lease arrangement',
-        citation: 'Source: Commercial Real Estate Law §18.5, NNN Lease Standards',
-        fieldMappings: {
-          responsibleParty: 'Tenant',
-          maintenanceOwnerResponsibility: 'Structural integrity and major capital improvements only',
-          maintenanceReasoning: 'Triple net lease structure - tenant responsible for most operational costs. This agreement follows a triple net (NNN) lease structure where tenant assumes responsibility for property taxes, insurance, and maintenance costs in addition to base rent. Owner maintains structural integrity only.',
+        {
+          id: '2',
+          value: 'Tenant',
+          description: 'Tenant assumes responsibility for most operational costs in NNN lease arrangement',
+          confidence: 88,
+          citation: 'Section 2.1, Article 4',
+          pdfReferences: [
+            {
+              page: 8,
+              segment: 'Tenant',
+              context: 'Section 2.1: Under this Triple Net (NNN) lease structure, the Tenant assumes comprehensive responsibility for property operations and maintenance.',
+              snippet: 'Article 4: This agreement follows a triple net (NNN) lease structure where tenant assumes responsibility for property taxes, insurance, and maintenance costs in addition to base rent. The tenant shall maintain the property in good condition and handle all day-to-day operational expenses.'
+            }
+          ]
         },
-        pdfReferences: [
-          {
-            page: 8,
-            segment: 'Tenant',
-            context: 'Section 2.1: Under this Triple Net (NNN) lease structure, the Tenant assumes comprehensive responsibility for property operations and maintenance.'
-          },
-          {
-            page: 9,
-            segment: 'Structural integrity and major capital improvements only',
-            context: 'Section 2.3: Owner responsibilities are limited to structural integrity and major capital improvements exceeding $10,000.'
-          },
-          {
-            page: 11,
-            segment: 'Triple net lease structure',
-            context: 'Article 4: This agreement follows a triple net (NNN) lease structure where tenant assumes responsibility for property taxes, insurance, and maintenance costs in addition to base rent.'
-          }
-        ],
-        previewSections: ['Maintenance', 'Billing'],
-      },
-      {
-        id: '3',
-        title: 'Shared Responsibility - Modified Gross Lease',
-        summary: 'Balanced maintenance split with negotiated cost thresholds',
-        citation: 'Source: Modified Gross Lease Framework, Industry Standard MGF-2024',
-        fieldMappings: {
-          responsibleParty: 'Shared Responsibility',
-          maintenanceOwnerResponsibility: 'Building systems, life safety equipment, and code compliance. Structural elements and major repairs over $2,500.',
-          maintenanceReasoning: 'Modified gross lease structure with negotiated maintenance responsibilities. Owner covers major repairs over $2,500, structural elements, and building systems. Tenant handles routine maintenance, minor repairs, and interior upkeep.',
+        {
+          id: '3',
+          value: 'Shared Responsibility',
+          description: 'Balanced maintenance split with negotiated cost thresholds',
+          confidence: 82,
+          citation: 'Section 1.5, Modified Gross Lease Terms',
+          pdfReferences: [
+            {
+              page: 5,
+              segment: 'Shared Responsibility',
+              context: 'Section 1.5: This Modified Gross Lease establishes a Shared Responsibility framework for property maintenance and operational costs.',
+              snippet: 'Section 1.5: This Modified Gross Lease establishes a Shared Responsibility framework for property maintenance and operational costs. Owner covers major repairs over $2,500, structural elements, and building systems. Tenant handles routine maintenance, minor repairs under $2,500, and interior upkeep.'
+            }
+          ]
         },
-        pdfReferences: [
-          {
-            page: 5,
-            segment: 'Shared Responsibility',
-            context: 'Section 1.5: This Modified Gross Lease establishes a Shared Responsibility framework for property maintenance and operational costs.'
-          },
-          {
-            page: 7,
-            segment: 'Building systems, life safety equipment',
-            context: 'Section 3.1: Owner shall maintain all building systems, life safety equipment, and ensure code compliance for all structural elements.'
-          },
-          {
-            page: 10,
-            segment: 'major repairs over $2,500',
-            context: 'Article 6.2: Cost threshold structure: Owner covers major repairs over $2,500, structural elements, and building systems. Tenant handles routine maintenance, minor repairs under $2,500, and interior upkeep.'
-          }
-        ],
-        previewSections: ['Maintenance'],
-      },
-    ],
+        {
+          id: '4',
+          value: 'Management Company',
+          description: 'Third-party management company handles all maintenance coordination',
+          confidence: 75,
+          citation: 'Addendum B, Management Services',
+          pdfReferences: [
+            {
+              page: 18,
+              segment: 'Management Company',
+              context: 'Addendum B: Property management services agreement delegating maintenance responsibilities to XYZ Management Services.',
+              snippet: 'The property owner has contracted with XYZ Management Services to oversee all maintenance coordination, vendor management, and emergency repairs. The management company acts as the primary point of contact for all property-related issues.'
+            }
+          ]
+        },
+        {
+          id: '5',
+          value: 'HOA',
+          description: 'Homeowners Association responsible for common area maintenance',
+          confidence: 68,
+          citation: 'HOA Bylaws Section 7',
+          pdfReferences: [
+            {
+              page: 22,
+              segment: 'HOA',
+              context: 'HOA Bylaws Section 7: The Homeowners Association maintains responsibility for all common areas and shared facilities.',
+              snippet: 'The Homeowners Association maintains responsibility for all common areas including parking lots, landscaping, exterior building maintenance, and shared amenities. Individual unit owners are responsible only for interior maintenance within their respective units.'
+            }
+          ]
+        }
+      ],
+      maintenanceOwnerResponsibility: [
+        {
+          id: '1',
+          value: 'Structural repairs, roof maintenance, HVAC systems, and major plumbing',
+          description: 'Comprehensive owner responsibilities for major building systems',
+          confidence: 93,
+          citation: 'Article 5.1, Owner Obligations',
+          pdfReferences: [
+            {
+              page: 15,
+              segment: 'Structural repairs, roof maintenance, HVAC systems',
+              context: 'Article 5.1: Owner responsibilities include structural repairs, complete roof maintenance and replacement, all HVAC systems servicing and repair, and major plumbing infrastructure.',
+              snippet: 'Owner responsibilities include structural repairs, complete roof maintenance and replacement, all HVAC systems servicing and repair, and major plumbing infrastructure. The owner must respond to major system failures within 24 hours and complete repairs within a reasonable timeframe.'
+            }
+          ]
+        },
+        {
+          id: '2',
+          value: 'Structural integrity and major capital improvements only',
+          description: 'Limited owner responsibilities under NNN lease structure',
+          confidence: 87,
+          citation: 'Section 2.3, NNN Lease Terms',
+          pdfReferences: [
+            {
+              page: 9,
+              segment: 'Structural integrity and major capital improvements only',
+              context: 'Section 2.3: Owner responsibilities are limited to structural integrity and major capital improvements exceeding $10,000.',
+              snippet: 'Under the Triple Net lease arrangement, owner responsibilities are limited to structural integrity of the building and major capital improvements exceeding $10,000. All routine maintenance, repairs, utilities, and property taxes are the responsibility of the tenant.'
+            }
+          ]
+        },
+        {
+          id: '3',
+          value: 'Building systems, life safety equipment, and code compliance',
+          description: 'Modified gross lease with shared responsibilities',
+          confidence: 85,
+          citation: 'Section 3.1, Shared Maintenance Framework',
+          pdfReferences: [
+            {
+              page: 7,
+              segment: 'Building systems, life safety equipment',
+              context: 'Section 3.1: Owner shall maintain all building systems, life safety equipment, and ensure code compliance for all structural elements.',
+              snippet: 'Owner shall maintain all building systems, life safety equipment, and ensure code compliance for all structural elements. This includes fire suppression systems, emergency lighting, elevators, and all mechanical systems serving the common areas and multiple tenant spaces.'
+            }
+          ]
+        },
+        {
+          id: '4',
+          value: 'Exterior maintenance, parking lot, and landscaping only',
+          description: 'Limited scope with management company handling operations',
+          confidence: 72,
+          citation: 'Addendum C, Scope of Services',
+          pdfReferences: [
+            {
+              page: 19,
+              segment: 'Exterior maintenance, parking lot, and landscaping',
+              context: 'Addendum C: Owner retains responsibility for exterior building maintenance, parking lot upkeep, and professional landscaping services.',
+              snippet: 'Owner retains responsibility for exterior building maintenance including painting, parking lot resurfacing and striping, and professional landscaping services for all common areas. The management company coordinates these services on behalf of the owner.'
+            }
+          ]
+        },
+        {
+          id: '5',
+          value: 'Common area maintenance and shared facilities',
+          description: 'HOA-managed property responsibilities',
+          confidence: 65,
+          citation: 'HOA Bylaws Section 8',
+          pdfReferences: [
+            {
+              page: 23,
+              segment: 'Common area maintenance',
+              context: 'HOA Bylaws Section 8: Individual owners contribute to HOA fees covering all common area maintenance and shared facility upkeep.',
+              snippet: 'Individual owners contribute monthly HOA fees covering all common area maintenance including landscaping, pool maintenance, clubhouse upkeep, exterior painting, roof repairs, and parking lot maintenance. The HOA Board contracts with service providers for these maintenance items.'
+            }
+          ]
+        }
+      ],
+      maintenanceReasoning: [
+        {
+          id: '1',
+          value: 'Standard commercial property allocation per state law. Owner retains responsibility for major systems and structural elements while tenant handles day-to-day maintenance.',
+          description: 'Standard legal framework for commercial leases',
+          confidence: 94,
+          citation: 'Legal Framework §45.2(b)',
+          pdfReferences: [
+            {
+              page: 23,
+              segment: 'Standard commercial property allocation per state law',
+              context: 'Legal Framework: Standard commercial property allocation per state law §45.2(b) requires owner to retain responsibility for major systems and structural elements while tenant handles day-to-day maintenance.',
+              snippet: 'Standard commercial property allocation per state law §45.2(b) establishes that in standard commercial leases, the property owner must retain responsibility for structural integrity, major building systems (HVAC, plumbing, electrical), and roof maintenance. This allocation protects both parties by ensuring the building remains safe and functional while allowing tenants to control their operational environment.'
+            }
+          ]
+        },
+        {
+          id: '2',
+          value: 'Triple net lease structure - tenant responsible for most operational costs. This agreement follows a triple net (NNN) lease structure where tenant assumes responsibility for property taxes, insurance, and maintenance costs in addition to base rent. Owner maintains structural integrity only.',
+          description: 'NNN lease arrangement with tenant operational responsibility',
+          confidence: 89,
+          citation: 'Article 4, NNN Lease Structure',
+          pdfReferences: [
+            {
+              page: 11,
+              segment: 'Triple net lease structure',
+              context: 'Article 4: This agreement follows a triple net (NNN) lease structure where tenant assumes responsibility for property taxes, insurance, and maintenance costs in addition to base rent.',
+              snippet: 'This agreement follows a triple net (NNN) lease structure where tenant assumes comprehensive responsibility for property taxes, insurance premiums, and all maintenance costs in addition to base rent. The tenant effectively operates as a pseudo-owner with full operational control and responsibility. The landlord maintains only structural integrity obligations, creating a hands-off investment for the property owner.'
+            }
+          ]
+        },
+        {
+          id: '3',
+          value: 'Modified gross lease structure with negotiated maintenance responsibilities. Owner covers major repairs over $2,500, structural elements, and building systems. Tenant handles routine maintenance, minor repairs, and interior upkeep.',
+          description: 'Balanced approach with negotiated thresholds',
+          confidence: 86,
+          citation: 'Article 6.2, Cost Threshold Structure',
+          pdfReferences: [
+            {
+              page: 10,
+              segment: 'major repairs over $2,500',
+              context: 'Article 6.2: Cost threshold structure: Owner covers major repairs over $2,500, structural elements, and building systems. Tenant handles routine maintenance, minor repairs under $2,500, and interior upkeep.',
+              snippet: 'Article 6.2 establishes a cost threshold structure balancing responsibilities between owner and tenant. Owner covers major repairs exceeding $2,500, all structural elements, building-wide systems, and capital improvements. Tenant handles day-to-day operations, routine maintenance tasks, minor repairs under $2,500, and all interior improvements and upkeep. This modified gross lease structure provides clarity and reduces disputes over maintenance obligations.'
+            }
+          ]
+        },
+        {
+          id: '4',
+          value: 'Professional management arrangement with third-party coordination. Management company handles all maintenance scheduling, vendor relations, and emergency response on behalf of owner.',
+          description: 'Delegated management structure',
+          confidence: 78,
+          citation: 'Management Agreement Section 5',
+          pdfReferences: [
+            {
+              page: 20,
+              segment: 'Management company handles all maintenance',
+              context: 'Management Agreement Section 5: The management company is authorized to schedule maintenance, hire contractors, and respond to emergencies up to $5,000 without prior owner approval.',
+              snippet: 'The property owner has delegated comprehensive management authority to XYZ Management Services. The management company handles all maintenance scheduling, coordinates with vendors and contractors, responds to tenant requests, and manages emergency repairs. For routine matters under $5,000, the management company has full authorization to act without prior owner approval, streamlining operations and ensuring rapid response times.'
+            }
+          ]
+        },
+        {
+          id: '5',
+          value: 'HOA-managed community with common area maintenance funded through monthly assessments. Individual owners responsible only for unit interiors while HOA maintains all common elements and exterior building components.',
+          description: 'Community association structure',
+          confidence: 70,
+          citation: 'CC&Rs Article 12',
+          pdfReferences: [
+            {
+              page: 24,
+              segment: 'HOA maintains all common elements',
+              context: 'CC&Rs Article 12: The Homeowners Association maintains responsibility for all common elements as defined in the declaration, funded through regular assessments.',
+              snippet: 'Under the governing CC&Rs Article 12, the Homeowners Association maintains comprehensive responsibility for all common area elements including building exteriors, roofs, parking areas, landscaping, pools, and recreational facilities. Individual unit owners pay monthly assessments to fund these maintenance activities and are responsible only for the interior of their units and any exclusive-use areas specifically assigned to them.'
+            }
+          ]
+        }
+      ]
+    }
   };
 
-  const categoryResponses = responses[category] || [];
-  const searchLower = query.toLowerCase();
-
-  return categoryResponses.filter(
-    (response) =>
-      (response.title?.toLowerCase().includes(searchLower)) ||
-      (response.summary?.toLowerCase().includes(searchLower)) ||
-      (response.fullDetails?.toLowerCase().includes(searchLower))
-  );
+  return suggestions[category] || {};
 };
 
 export function CategorySection({
@@ -145,133 +277,180 @@ export function CategorySection({
   fields,
   formData,
   onFieldChange,
-  aiMode = false,
-  ghostValues = {},
-  onAcceptGhost,
-  onFieldSearch,
 }: CategorySectionProps) {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [aiResponses, setAiResponses] = useState<AIResponse[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [showCitations, setShowCitations] = useState(false);
-  const [showPreviewModal, setShowPreviewModal] = useState(false);
-  const [selectedPreviewResponse, setSelectedPreviewResponse] = useState<AIResponse | null>(null);
-  
-  // Field-level autocomplete
-  const [activeField, setActiveField] = useState<string | null>(null);
-  const [fieldSuggestions, setFieldSuggestions] = useState<AIResponse[]>([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const suggestionRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const [aiSuggestions, setAiSuggestions] = useState<FieldOptions>({});
+  const [isAIFilled, setIsAIFilled] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [activePopup, setActivePopup] = useState<{
+    fieldId: string;
+    position: { top: number; left: number };
+  } | null>(null);
+  const [showFullModal, setShowFullModal] = useState(false);
+  const [modalFieldId, setModalFieldId] = useState<string | null>(null);
+  const fieldRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const [popupOpacity, setPopupOpacity] = useState(1);
+  const [showSnippet, setShowSnippet] = useState<{ optionId: string; snippet: string } | null>(null);
+  const [expandedAlternative, setExpandedAlternative] = useState<string | null>(null);
 
-  // AI search functionality removed per user request
-  // The search bar in maintenance section has been completely removed
-  useEffect(() => {
-    // Clear any existing search state since search bar is removed
-    setSearchQuery('');
-    setAiResponses([]);
-    setShowCitations(false);
-    setIsSearching(false);
-    setIsProcessing(false);
-  }, [aiMode, category]);
-
-  // Field value matches - DISABLED since search bar is removed
-  // This functionality was tied to the maintenance section search bar
-  useEffect(() => {
-    // Clear field suggestions since search is removed
-    setFieldSuggestions([]);
-    setShowSuggestions(false);
-  }, [formData, activeField]);
-
-  const handleApplyCitation = (response: AIResponse) => {
-    // Apply all field mappings from the response
-    Object.entries(response.fieldMappings).forEach(([fieldId, value]) => {
-      onFieldChange(fieldId, value);
-    });
+  const handleUsePDFSuggestions = () => {
+    setIsLoading(true);
     
-    // Close citations after applying
-    setShowCitations(false);
-    setSearchQuery('');
-    setAiResponses([]);
-  };
-
-  const handlePreviewClick = (response: AIResponse) => {
-    setSelectedPreviewResponse(response);
-    setShowPreviewModal(true);
-  };
-
-  const handleSuggestionSelect = (response: AIResponse) => {
-    // Apply all fields from this citation
-    Object.entries(response.fieldMappings).forEach(([fieldId, value]) => {
-      onFieldChange(fieldId, value);
-    });
-    setShowSuggestions(false);
-    setActiveField(null);
-  };
-
-  const handleFieldFocus = (fieldId: string) => {
-    setActiveField(fieldId);
-  };
-
-  const handleFieldBlur = () => {
-    // Delay to allow click on suggestion
+    // Simulate AI processing delay
     setTimeout(() => {
-      setActiveField(null);
-      setShowSuggestions(false);
-    }, 200);
+      const suggestions = getPDFSuggestions(category);
+      setAiSuggestions(suggestions);
+      
+      // Auto-fill with first option for each field
+      Object.keys(suggestions).forEach(fieldId => {
+        if (suggestions[fieldId] && suggestions[fieldId].length > 0) {
+          onFieldChange(fieldId, suggestions[fieldId][0].value);
+        }
+      });
+      
+      setIsAIFilled(true);
+      setIsLoading(false);
+    }, 1500);
   };
 
-  const renderFieldWithAutocomplete = (
+  const handleFieldValueClick = (e: React.MouseEvent, fieldId: string) => {
+    if (!isAIFilled || !aiSuggestions[fieldId]) return;
+    
+    e.stopPropagation();
+    const target = e.currentTarget as HTMLElement;
+    const rect = target.getBoundingClientRect();
+    
+    setActivePopup({
+      fieldId,
+      position: {
+        top: rect.bottom + 8,
+        left: rect.left
+      }
+    });
+  };
+
+  const handleOptionSelect = (fieldId: string, option: AIOption) => {
+    // Find the index of the selected option in its respective field array
+    const selectedFieldOptions = aiSuggestions[fieldId];
+    const optionIndex = selectedFieldOptions?.findIndex(opt => opt.id === option.id) || 0;
+
+    // Always cascade updates to all three fields based on the selected index
+    if (category === 'maintenance') {
+      // Update the field that was changed
+      onFieldChange(fieldId, option.value);
+
+      // Update responsible party if not the changed field
+      if (fieldId !== 'responsibleParty' && 
+          aiSuggestions.responsibleParty && 
+          aiSuggestions.responsibleParty[optionIndex]) {
+        const correspondingRP = aiSuggestions.responsibleParty[optionIndex];
+        onFieldChange('responsibleParty', correspondingRP.value);
+      }
+      
+      // Update maintenance owner responsibility if not the changed field
+      if (fieldId !== 'maintenanceOwnerResponsibility' && 
+          aiSuggestions.maintenanceOwnerResponsibility && 
+          aiSuggestions.maintenanceOwnerResponsibility[optionIndex]) {
+        const correspondingMOR = aiSuggestions.maintenanceOwnerResponsibility[optionIndex];
+        onFieldChange('maintenanceOwnerResponsibility', correspondingMOR.value);
+      }
+      
+      // Update maintenance reasoning if not the changed field
+      if (fieldId !== 'maintenanceReasoning' && 
+          aiSuggestions.maintenanceReasoning && 
+          aiSuggestions.maintenanceReasoning[optionIndex]) {
+        const correspondingMR = aiSuggestions.maintenanceReasoning[optionIndex];
+        onFieldChange('maintenanceReasoning', correspondingMR.value);
+      }
+    } else {
+      // For non-maintenance fields, just update that field
+      onFieldChange(fieldId, option.value);
+    }
+    
+    setActivePopup(null);
+  };
+
+  const handleShowMore = (fieldId: string) => {
+    setModalFieldId(fieldId);
+    setShowFullModal(true);
+    setActivePopup(null);
+  };
+
+  // Close popup when clicking outside
+  useEffect(() => {
+    const handleClickOutside = () => {
+      if (activePopup) {
+        setActivePopup(null);
+      }
+    };
+
+    if (activePopup) {
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
+    }
+  }, [activePopup]);
+
+  // Fade popup when scrolling
+  useEffect(() => {
+    const handleScroll = () => {
+      if (activePopup) {
+        // Start fading
+        setPopupOpacity(0);
+        // Close after fade animation completes
+        setTimeout(() => {
+          setActivePopup(null);
+          setPopupOpacity(1);
+        }, 300);
+      }
+    };
+
+    if (activePopup) {
+      window.addEventListener('scroll', handleScroll, true);
+      return () => window.removeEventListener('scroll', handleScroll, true);
+    }
+  }, [activePopup]);
+
+  // Filter suggestions based on current field value
+  const getFilteredSuggestions = (fieldId: string) => {
+    if (!aiSuggestions[fieldId]) return [];
+    
+    const currentValue = formData[fieldId] || '';
+    if (!currentValue.trim()) return aiSuggestions[fieldId];
+    
+    const searchTerm = currentValue.toLowerCase();
+    return aiSuggestions[fieldId].filter(option => 
+      option.value.toLowerCase().includes(searchTerm) ||
+      option.description.toLowerCase().includes(searchTerm)
+    );
+  };
+
+  const renderClickableField = (
     fieldId: string,
     label: string,
     placeholder: string,
     value: string,
     isTextarea: boolean = false
   ) => {
-    const hasSuggestions = showSuggestions && activeField === fieldId && fieldSuggestions.length > 0;
-
-    // If in AI mode, use GhostFormField
-    if (aiMode) {
-      const ghostValue = ghostValues[fieldId];
-      const hasGhost = Boolean(ghostValue && !value);
-      
-      return (
-        <GhostFormField
-          id={fieldId}
-          label={label}
-          value={value}
-          ghostValue={ghostValue}
-          placeholder={placeholder}
-          isTextarea={isTextarea}
-          onChange={(newValue) => onFieldChange(fieldId, newValue)}
-          onFocus={() => handleFieldFocus(fieldId)}
-          onBlur={handleFieldBlur}
-          onAcceptGhost={onAcceptGhost}
-          onFieldSearch={onFieldSearch}
-          hasAISuggestion={hasGhost}
-          sourceInfo={hasGhost ? {
-            page: 12,
-            snippet: ghostValue?.substring(0, 50) + '...'
-          } : undefined}
-        />
-      );
-    }
+    const hasAISuggestions = isAIFilled && aiSuggestions[fieldId];
+    const isPopupOpen = activePopup?.fieldId === fieldId;
 
     return (
       <div id={`field-${fieldId}`} className="relative">
         <label className="block text-sm text-gray-700 mb-2">
           {label} <span className="text-red-500">*</span>
         </label>
-        <div className="relative">
+        <div className="relative" ref={(el) => fieldRefs.current[fieldId] = el}>
           {isTextarea ? (
             <textarea
               placeholder={placeholder}
               value={value}
               onChange={(e) => onFieldChange(fieldId, e.target.value)}
-              onFocus={() => handleFieldFocus(fieldId)}
-              onBlur={handleFieldBlur}
+              onClick={(e) => handleFieldValueClick(e, fieldId)}
               rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none transition-all"
+              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 resize-none transition-all cursor-pointer ${
+                hasAISuggestions && value
+                  ? 'border-[#DD0031] bg-red-50/30 hover:bg-red-50/50 focus:ring-[#DD0031]'
+                  : 'border-gray-300 focus:ring-[#0047BB]'
+              }`}
             />
           ) : (
             <input
@@ -279,40 +458,22 @@ export function CategorySection({
               placeholder={placeholder}
               value={value}
               onChange={(e) => onFieldChange(fieldId, e.target.value)}
-              onFocus={() => handleFieldFocus(fieldId)}
-              onBlur={handleFieldBlur}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+              onClick={(e) => handleFieldValueClick(e, fieldId)}
+              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 transition-all cursor-pointer ${
+                hasAISuggestions && value
+                  ? 'border-[#DD0031] bg-red-50/30 hover:bg-red-50/50 focus:ring-[#DD0031]'
+                  : 'border-gray-300 focus:ring-[#0047BB]'
+              }`}
             />
           )}
           
-          {/* Autocomplete suggestions dropdown */}
-          {hasSuggestions && (
-            <div 
-              ref={(el) => suggestionRefs.current[fieldId] = el}
-              className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto"
-            >
-              {fieldSuggestions.map((response) => (
-                <button
-                  key={response.id}
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    handleSuggestionSelect(response);
-                  }}
-                  className="w-full px-4 py-3 text-left hover:bg-purple-50 border-b border-gray-100 last:border-b-0 transition-colors"
-                >
-                  <div className="text-sm font-medium text-gray-900 mb-1">
-                    {response.title}
-                  </div>
-                  <div className="text-xs text-gray-600 line-clamp-1">
-                    {response.fieldMappings[fieldId]}
-                  </div>
-                  {response.citation && (
-                    <div className="text-xs text-gray-500 italic mt-1">
-                      {response.citation}
-                    </div>
-                  )}
-                </button>
-              ))}
+          {/* AI Badge */}
+          {hasAISuggestions && value && (
+            <div className="absolute right-2 top-2">
+              <div className="flex items-center gap-1 bg-[#DD0031] text-white text-xs px-2 py-0.5 rounded-full">
+                <Sparkles className="w-3 h-3" />
+                <span>AI</span>
+              </div>
             </div>
           )}
         </div>
@@ -325,20 +486,20 @@ export function CategorySection({
       return (
         <>
           <div className="grid grid-cols-2 gap-4 mb-4">
-            {renderFieldWithAutocomplete(
+            {renderClickableField(
               'agreementName',
               'Agreement name',
               'Agreement name',
               formData.agreementName
             )}
-            {renderFieldWithAutocomplete(
+            {renderClickableField(
               'agreementDate',
               'Agreement date',
               'MM/DD/YYYY',
               formData.agreementDate
             )}
           </div>
-          {renderFieldWithAutocomplete(
+          {renderClickableField(
             'notes',
             'Notes',
             'Enter any additional notes about this agreement',
@@ -352,19 +513,19 @@ export function CategorySection({
     if (category === 'maintenance') {
       return (
         <div className="space-y-4">
-          {renderFieldWithAutocomplete(
+          {renderClickableField(
             'responsibleParty',
             'Responsible party',
             'Responsible party',
             formData.responsibleParty || ''
           )}
-          {renderFieldWithAutocomplete(
+          {renderClickableField(
             'maintenanceOwnerResponsibility',
             'Maintenance owner responsibility',
             'Maintenance owner responsibility',
             formData.maintenanceOwnerResponsibility || ''
           )}
-          {renderFieldWithAutocomplete(
+          {renderClickableField(
             'maintenanceReasoning',
             'Maintenance reasoning',
             'Maintenance reasoning',
@@ -377,14 +538,14 @@ export function CategorySection({
     if (category === 'billing') {
       return (
         <div className="grid grid-cols-2 gap-4">
-          {renderFieldWithAutocomplete(
+          {renderClickableField(
             'billingContact',
             'Billing contact',
             'Billing contact',
             formData.billingContact,
             true
           )}
-          {renderFieldWithAutocomplete(
+          {renderClickableField(
             'billingAgreement',
             'Billing agreement',
             'Billing agreement',
@@ -399,99 +560,55 @@ export function CategorySection({
   };
 
   return (
-    <div className="border-b border-gray-200" data-section={category}>
+    <div className="border-b border-gray-200">
       <div className="px-6 py-6">
         {/* Category Header */}
         <div className="mb-4">
           <h2 className="text-gray-900 mb-4">{title}</h2>
           
-          {/* AI Search Bar - REMOVED per user request */}
-          {false && category === 'maintenance' && !aiMode && (
-            <div className="mb-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <div className={`relative ${isSearching ? 'rotating-border-container' : ''}`}>
-                  <input
-                    type="text"
-                    placeholder="Search AI suggestions for this section..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent relative z-10 bg-white"
-                  />
-                  {isSearching && (
-                    <div className="rotating-border"></div>
-                  )}
-                </div>
+          {/* AI Suggestions Button - Only show for maintenance category */}
+          {category === 'maintenance' && !isAIFilled && (
+            <button
+              onClick={handleUsePDFSuggestions}
+              disabled={isLoading}
+              className="mb-6 w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-[#A50026] to-[#DD0031] text-white rounded-lg hover:from-[#8B0020] hover:to-[#A50026] transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg"
+            >
+              {isLoading ? (
+                <>
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <span>Processing Linked Documents...</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-5 h-5" />
+                  <span>Use AI suggestions from Linked Documents</span>
+                </>
+              )}
+            </button>
+          )}
+
+          {/* AI Filled Indicator */}
+          {category === 'maintenance' && isAIFilled && (
+            <div className="mb-6 bg-green-50 border border-green-200 rounded-lg px-4 py-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                <span className="text-sm text-green-700">
+                  Fields filled with AI suggestions. Click any field to see alternatives.
+                </span>
               </div>
-              
-              {/* Loading indicator */}
-              {isProcessing && (
-                <div className="mt-2 text-sm text-gray-500 flex items-center gap-2">
-                  <div className="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
-                  Processing AI suggestions...
-                </div>
-              )}
-              
-              {/* Citations below search box */}
-              {showCitations && aiResponses.length > 0 && (
-                <div className="mt-3 bg-purple-50 border border-purple-200 rounded-lg p-4">
-                  <div className="text-sm text-gray-700 mb-3 flex items-center justify-between">
-                    <span className="font-medium">
-                      {aiResponses.length} result{aiResponses.length !== 1 ? 's' : ''} found
-                    </span>
-                    <button
-                      onClick={() => {
-                        setShowCitations(false);
-                        setSearchQuery('');
-                        setAiResponses([]);
-                      }}
-                      className="text-gray-500 hover:text-gray-700"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    {aiResponses.map((response, index) => (
-                      <div 
-                        key={response.id} 
-                        className="bg-white border border-purple-200 rounded-lg p-3 flex items-start justify-between gap-3"
-                      >
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium text-gray-900 mb-1">
-                            [{index + 1}] {response.title}
-                          </div>
-                          {response.citation && (
-                            <div className="text-xs text-gray-500 italic">
-                              {response.citation}
-                            </div>
-                          )}
-                        </div>
-                        
-                        <div className="flex items-center gap-1 flex-shrink-0">
-                          {/* Preview Button */}
-                          <button
-                            onClick={() => handlePreviewClick(response)}
-                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                            title="Preview PDF references"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
-                          
-                          {/* Check/Apply Button */}
-                          <button
-                            onClick={() => handleApplyCitation(response)}
-                            className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                            title="Apply to form"
-                          >
-                            <Check className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+              <button
+                onClick={() => {
+                  setIsAIFilled(false);
+                  setAiSuggestions({});
+                  // Clear all fields
+                  fields.forEach(field => {
+                    onFieldChange(field.id, '');
+                  });
+                }}
+                className="text-xs text-green-700 hover:text-green-900 underline"
+              >
+                Reset
+              </button>
             </div>
           )}
         </div>
@@ -500,151 +617,255 @@ export function CategorySection({
         {renderFormFields()}
       </div>
 
-      {/* Preview Modal for PDF References */}
-      {showPreviewModal && selectedPreviewResponse && (
+      {/* Small Translucent Popup */}
+      {activePopup && aiSuggestions[activePopup.fieldId] && (
+        <>
+          {/* Backdrop to close popup */}
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setActivePopup(null)}
+          />
+          
+          {/* Popup */}
+          <div
+            className="fixed z-50 bg-white/95 backdrop-blur-md border border-[#DD0031] rounded-lg shadow-2xl p-4 w-96 transition-opacity duration-300"
+            style={{
+              top: `${activePopup.position.top + 8}px`,
+              left: `${activePopup.position.left}px`,
+              opacity: popupOpacity
+            }}
+          >
+            <div className="text-xs text-gray-600 mb-3 flex items-center gap-2">
+              <Sparkles className="w-3 h-3 text-[#DD0031]" />
+              <span>Top alternatives from Linked Documents</span>
+            </div>
+            
+            <div className="space-y-2 mb-3">
+              {getFilteredSuggestions(activePopup.fieldId).slice(0, 3).map((option) => (
+                <div key={option.id} className="relative">
+                  <button
+                    onClick={() => handleOptionSelect(activePopup.fieldId, option)}
+                    className={`w-full text-left p-3 rounded-lg border border-gray-200 hover:border-[#DD0031] hover:bg-red-50/50 transition-all group ${
+                      expandedAlternative === option.id ? 'pr-12' : ''
+                    }`}
+                  >
+                    <div className={expandedAlternative === option.id ? 'text-sm text-gray-900' : 'text-sm text-gray-900 line-clamp-2'}>
+                      {option.value}
+                    </div>
+                    <div className={expandedAlternative === option.id ? 'text-xs text-gray-500 mt-1' : 'text-xs text-gray-500 line-clamp-1 mt-1'}>
+                      {option.description}
+                    </div>
+                  </button>
+                  
+                  {/* Expand Button */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setExpandedAlternative(expandedAlternative === option.id ? null : option.id);
+                    }}
+                    className="absolute right-3 top-3 p-1 bg-white hover:bg-[#0047BB] text-gray-600 hover:text-white border border-gray-300 hover:border-[#0047BB] rounded transition-all"
+                    title={expandedAlternative === option.id ? "Collapse" : "Expand"}
+                  >
+                    <Maximize2 className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+            
+            {getFilteredSuggestions(activePopup.fieldId).length > 3 && (
+              <button
+                onClick={() => handleShowMore(activePopup.fieldId)}
+                className="w-full text-center text-sm text-[#0047BB] hover:text-[#003399] font-medium py-2 border-t border-gray-200 flex items-center justify-center gap-1"
+              >
+                <span>Show more options</span>
+                <ChevronDown className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* Full Modal for All Options */}
+      {showFullModal && modalFieldId && aiSuggestions[modalFieldId] && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           {/* Backdrop */}
           <div
             className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-            onClick={() => setShowPreviewModal(false)}
+            onClick={() => {
+              setShowFullModal(false);
+              setShowSnippet(null);
+            }}
           />
           
           {/* Modal Content */}
-          <div className="relative bg-white rounded-xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+          <div className="relative bg-white rounded-xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-hidden flex flex-col">
             {/* Modal Header */}
-            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-[#DD0031]/5 to-[#0047BB]/5">
               <div>
-                <h3 className="text-gray-900 mb-1">{selectedPreviewResponse.title}</h3>
-                <p className="text-sm text-gray-600">{selectedPreviewResponse.citation}</p>
+                <h3 className="text-gray-900 mb-1">All Available Options</h3>
+                <p className="text-sm text-gray-600">
+                  {fields.find(f => f.id === modalFieldId)?.label}
+                </p>
               </div>
               <button
-                onClick={() => setShowPreviewModal(false)}
+                onClick={() => {
+                  setShowFullModal(false);
+                  setShowSnippet(null);
+                }}
                 className="p-1 hover:bg-gray-100 rounded-full transition-colors"
               >
                 <X className="w-5 h-5 text-gray-600" />
               </button>
             </div>
             
-            {/* Modal Body - PDF References */}
+            {/* Modal Body */}
             <div className="flex-1 overflow-y-auto px-6 py-4">
-              <div className="space-y-4">
-                <h4 className="text-sm font-medium text-gray-700 mb-3">
-                  Referenced from {selectedPreviewResponse.pdfReferences?.length || 0} location(s) in document:
-                </h4>
-                
-                {selectedPreviewResponse.pdfReferences?.map((ref, index) => (
-                  <div key={index} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-medium text-purple-600 bg-purple-100 px-2 py-1 rounded">
-                        Page {ref.page}
-                      </span>
-                      <span className="text-xs text-gray-500">Reference {index + 1}</span>
-                    </div>
-                    
-                    <div className="mb-2">
-                      <div className="text-xs text-gray-600 mb-1">Segment:</div>
-                      <div className="text-sm bg-yellow-100 px-2 py-1 rounded inline-block">
-                        "{ref.segment}"
-                      </div>
-                    </div>
-                    
-                    <div className="mb-3">
-                      <div className="text-xs text-gray-600 mb-1">Context:</div>
-                      <p className="text-sm text-gray-700 leading-relaxed">
-                        {ref.context}
-                      </p>
-                    </div>
-                    
-                    <button
+              <div className="space-y-3">
+                {aiSuggestions[modalFieldId].map((option, index) => (
+                  <div
+                    key={option.id}
+                    className="border-2 border-gray-200 rounded-lg overflow-hidden hover:border-[#DD0031] hover:shadow-lg transition-all"
+                  >
+                    <div
+                      className="p-4 cursor-pointer hover:bg-red-50/30"
                       onClick={() => {
-                        // Open PDF in new tab at specific page
-                        // In a real application, this would open the actual PDF file
-                        const pdfUrl = `/documents/agreement.pdf#page=${ref.page}`;
-                        window.open(pdfUrl, '_blank');
+                        handleOptionSelect(modalFieldId, option);
+                        setShowFullModal(false);
+                        setShowSnippet(null);
                       }}
-                      className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm flex items-center justify-center gap-2"
                     >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                      </svg>
-                      Open PDF at Page {ref.page}
-                    </button>
+                      <div className="flex items-start justify-between gap-4 mb-3">
+                        <div className="flex items-start gap-3 flex-1">
+                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#DD0031] to-[#A50026] text-white flex items-center justify-center flex-shrink-0 shadow-md">
+                            {index + 1}
+                          </div>
+                          <div className="flex-1">
+                            <div className="text-sm text-gray-900 mb-2">
+                              {option.value}
+                            </div>
+                            <div className="text-xs text-gray-600 mb-2">
+                              {option.description}
+                            </div>
+                            
+                            {/* Citation and Page */}
+                            {option.pdfReferences && option.pdfReferences.length > 0 && (
+                              <div className="flex flex-wrap items-center gap-3 text-xs">
+                                <div className="flex items-center gap-1 text-[#0047BB]">
+                                  <FileText className="w-3 h-3" />
+                                  <span>Page {option.pdfReferences[0].page}</span>
+                                </div>
+                                {option.citation && (
+                                  <div className="flex items-center gap-1 text-gray-600">
+                                    <span>•</span>
+                                    <span className="italic">{option.citation}</span>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* PDF Reference Context */}
+                      {option.pdfReferences && option.pdfReferences.length > 0 && (
+                        <div className="mt-3 pt-3 border-t border-gray-200">
+                          <div className="text-xs text-gray-600 mb-2 flex items-center gap-1">
+                            <span>Reference Context:</span>
+                          </div>
+                          <div className="bg-amber-50 border-l-4 border-[#FFB81C] rounded p-3 text-xs text-gray-700">
+                            {option.pdfReferences[0].context}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* View Document Snippet Button */}
+                    {option.pdfReferences && option.pdfReferences.length > 0 && option.pdfReferences[0].snippet && (
+                      <div className="px-4 py-2 bg-gray-50 border-t border-gray-200">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowSnippet({
+                              optionId: option.id,
+                              snippet: option.pdfReferences![0].snippet
+                            });
+                          }}
+                          className="text-xs text-[#0047BB] hover:text-[#003399] flex items-center gap-1 transition-colors"
+                        >
+                          <FileText className="w-3.5 h-3.5" />
+                          <span>View document snippet</span>
+                        </button>
+                      </div>
+                    )}
                   </div>
-                ))}
-              </div>
+                ))}</div>
             </div>
             
             {/* Modal Footer */}
-            <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-end gap-3">
-              <button
-                onClick={() => setShowPreviewModal(false)}
-                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                Close
-              </button>
+            <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-end bg-gray-50">
               <button
                 onClick={() => {
-                  handleApplyCitation(selectedPreviewResponse);
-                  setShowPreviewModal(false);
+                  setShowFullModal(false);
+                  setShowSnippet(null);
                 }}
-                className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
+                className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
               >
-                <Check className="w-4 h-4" />
-                Apply to Form
+                Close
               </button>
             </div>
           </div>
         </div>
       )}
-
-      <style>{`
-        @keyframes chaseBorder {
-          0% {
-            transform: rotate(0deg);
-          }
-          100% {
-            transform: rotate(360deg);
-          }
-        }
-        
-        .rotating-border-container {
-          position: relative;
-        }
-        
-        .rotating-border {
-          position: absolute;
-          top: -3px;
-          left: -3px;
-          right: -3px;
-          bottom: -3px;
-          border-radius: 10px;
-          background: conic-gradient(
-            from 0deg,
-            transparent 0%,
-            transparent 85%,
-            rgb(147, 51, 234) 92%,
-            rgb(147, 51, 234) 95%,
-            transparent 98%,
-            transparent 100%
-          );
-          animation: chaseBorder 1s linear infinite;
-          z-index: 0;
-        }
-        
-        .rotating-border::before {
-          content: '';
-          position: absolute;
-          inset: 3px;
-          background: white;
-          border-radius: 8px;
-          z-index: 1;
-        }
-        
-        .rotating-border-container input {
-          position: relative;
-          z-index: 10;
-        }
-      `}</style>
+      
+      {/* Document Snippet Modal */}
+      {showSnippet && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setShowSnippet(null)}
+          />
+          
+          {/* Snippet Content */}
+          <div className="relative bg-white rounded-xl shadow-2xl max-w-3xl w-full max-h-[80vh] overflow-hidden flex flex-col">
+            {/* Snippet Header */}
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-[#FFB81C]/10 to-[#0047BB]/10">
+              <div className="flex items-center gap-2">
+                <FileText className="w-5 h-5 text-[#0047BB]" />
+                <h3 className="text-gray-900">Document Snippet</h3>
+              </div>
+              <button
+                onClick={() => setShowSnippet(null)}
+                className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-600" />
+              </button>
+            </div>
+            
+            {/* Snippet Body */}
+            <div className="flex-1 overflow-y-auto px-6 py-6">
+              <div className="bg-amber-50 border-2 border-[#FFB81C] rounded-lg p-6">
+                <div className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">
+                  {showSnippet.snippet}
+                </div>
+              </div>
+            </div>
+            
+            {/* Snippet Footer */}
+            <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between bg-gray-50">
+              <p className="text-xs text-gray-500">
+                This is an excerpt from the source document showing the relevant context.
+              </p>
+              <button
+                onClick={() => setShowSnippet(null)}
+                className="px-4 py-2 bg-[#0047BB] text-white rounded-lg hover:bg-[#003399] transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

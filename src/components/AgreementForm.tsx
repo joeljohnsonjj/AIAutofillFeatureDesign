@@ -5,20 +5,9 @@ import { CategorySection } from './CategorySection';
 interface AgreementFormProps {
   formData: Record<string, string>;
   onFieldChange: (fieldId: string, value: string) => void;
-  aiMode?: boolean;
-  ghostValues?: Record<string, string>;
-  onAcceptGhost?: (fieldId: string) => void;
-  onFieldSearch?: (fieldId: string, value: string) => void;
 }
 
-export function AgreementForm({ 
-  formData, 
-  onFieldChange, 
-  aiMode = false, 
-  ghostValues = {},
-  onAcceptGhost,
-  onFieldSearch,
-}: AgreementFormProps) {
+export function AgreementForm({ formData, onFieldChange }: AgreementFormProps) {
   const [isExpanded, setIsExpanded] = useState(true);
 
   return (
@@ -64,10 +53,6 @@ export function AgreementForm({
                 ]}
                 formData={formData}
                 onFieldChange={onFieldChange}
-                aiMode={aiMode}
-                ghostValues={ghostValues}
-                onAcceptGhost={onAcceptGhost}
-                onFieldSearch={onFieldSearch}
               />
 
               {/* Billing Section */}
