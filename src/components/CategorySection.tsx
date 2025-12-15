@@ -409,6 +409,118 @@ export function CategorySection({
     }
   }, [activePopup]);
 
+  // Highlight relevant parts of text with different colors for different field types
+  const highlightRelevantText = (
+    text: string, 
+    highlights: Array<{ value: string; color: string; fieldType: string }>,
+    segment?: string
+  ): React.ReactNode => {
+    if (!text || highlights.length === 0) return text;
+    
+    // Build patterns for all highlights
+    const highlightPatterns: Array<{ pattern: string; color: string; fieldType: string }> = [];
+    
+    highlights.forEach(({ value, color, fieldType }) => {
+      if (!value || value.length < 2) return;
+      
+      // Extract key phrases from value (split by commas, "and", etc.)
+      const valuePhrases = value
+        .split(/[,;]| and | or /i)
+        .map(phrase => phrase.trim())
+        .filter(phrase => phrase.length > 2);
+      
+      // Add main value
+      highlightPatterns.push({
+        pattern: value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
+        color,
+        fieldType
+      });
+      
+      // Add individual phrases
+      valuePhrases.forEach(phrase => {
+        if (phrase.length > 2 && phrase !== value) {
+          highlightPatterns.push({
+            pattern: phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
+            color,
+            fieldType
+          });
+        }
+      });
+    });
+    
+    // Add segment if provided (use yellow for segment)
+    if (segment && segment.length > 2) {
+      highlightPatterns.push({
+        pattern: segment.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
+        color: 'bg-[#FFB81C]',
+        fieldType: 'segment'
+      });
+    }
+    
+    if (highlightPatterns.length === 0) return text;
+    
+    // Find all matches with their colors
+    const matches: Array<{ index: number; length: number; text: string; color: string; fieldType: string }> = [];
+    
+    highlightPatterns.forEach(({ pattern, color, fieldType }) => {
+      const regex = new RegExp(pattern, 'gi');
+      let match;
+      while ((match = regex.exec(text)) !== null) {
+        matches.push({
+          index: match.index,
+          length: match[0].length,
+          text: match[0],
+          color,
+          fieldType
+        });
+      }
+    });
+    
+    // Sort matches by index and prioritize longer matches when overlapping
+    matches.sort((a, b) => {
+      if (a.index !== b.index) return a.index - b.index;
+      return b.length - a.length; // Longer matches first
+    });
+    
+    // Remove overlaps, keeping the first (longest) match
+    const nonOverlappingMatches: Array<{ index: number; length: number; text: string; color: string; fieldType: string }> = [];
+    matches.forEach(m => {
+      const overlaps = nonOverlappingMatches.some(existing => 
+        !(m.index >= existing.index + existing.length || m.index + m.length <= existing.index)
+      );
+      if (!overlaps) {
+        nonOverlappingMatches.push(m);
+      }
+    });
+    
+    // Build parts array
+    const parts: React.ReactNode[] = [];
+    let lastIndex = 0;
+    
+    nonOverlappingMatches.forEach((m, idx) => {
+      // Add text before match
+      if (m.index > lastIndex) {
+        parts.push(text.substring(lastIndex, m.index));
+      }
+      
+      // Add highlighted match with appropriate color
+      parts.push(
+        <mark key={`highlight-${idx}-${m.index}`} className={`${m.color} text-gray-900 font-semibold px-1 rounded`}>
+          {m.text}
+        </mark>
+      );
+      
+      lastIndex = m.index + m.length;
+    });
+    
+    // Add remaining text
+    if (lastIndex < text.length) {
+      parts.push(text.substring(lastIndex));
+    }
+    
+    return parts.length > 0 ? <>{parts}</> : text;
+  };
+
   // Filter suggestions based on current field value
   // If field value matches any AI suggestion (or is empty), show top 3
   // If field has been manually modified (doesn't match any suggestion), filter suggestions based on typed text
@@ -858,6 +970,59 @@ export function CategorySection({
         
         if (!currentOption || !pdfRef) return null;
         
+        // Get all related field values for highlighting
+        const highlights: Array<{ value: string; color: string; fieldType: string }> = [];
+        
+        if (category === 'maintenance') {
+          // Get the index of the current option to find corresponding options in other fields
+          const currentFieldOptions = modalFieldId ? aiSuggestions[modalFieldId] : [];
+          const currentOptionIndex = currentFieldOptions?.findIndex(opt => opt.id === showSnippet.optionId) ?? -1;
+          
+          // Responsible Party - Cyan
+          // Use formData first, then corresponding AI suggestion, then current option if it's for this field
+          const responsiblePartyValue = formData.responsibleParty || 
+            (currentOptionIndex >= 0 && aiSuggestions.responsibleParty?.[currentOptionIndex]?.value) ||
+            (modalFieldId === 'responsibleParty' ? currentOption.value : '');
+          if (responsiblePartyValue) {
+            highlights.push({
+              value: responsiblePartyValue,
+              color: 'bg-cyan-300',
+              fieldType: 'responsibleParty'
+            });
+          }
+          
+          // Owner Responsibility - Light Green
+          const ownerResponsibilityValue = formData.maintenanceOwnerResponsibility || 
+            (currentOptionIndex >= 0 && aiSuggestions.maintenanceOwnerResponsibility?.[currentOptionIndex]?.value) ||
+            (modalFieldId === 'maintenanceOwnerResponsibility' ? currentOption.value : '');
+          if (ownerResponsibilityValue) {
+            highlights.push({
+              value: ownerResponsibilityValue,
+              color: 'bg-green-300',
+              fieldType: 'maintenanceOwnerResponsibility'
+            });
+          }
+          
+          // Reasoning - Light Orange
+          const reasoningValue = formData.maintenanceReasoning || 
+            (currentOptionIndex >= 0 && aiSuggestions.maintenanceReasoning?.[currentOptionIndex]?.value) ||
+            (modalFieldId === 'maintenanceReasoning' ? currentOption.value : '');
+          if (reasoningValue) {
+            highlights.push({
+              value: reasoningValue,
+              color: 'bg-orange-300',
+              fieldType: 'maintenanceReasoning'
+            });
+          }
+        } else {
+          // For other categories, use yellow for the current field
+          highlights.push({
+            value: currentOption.value,
+            color: 'bg-[#FFB81C]',
+            fieldType: modalFieldId || 'default'
+          });
+        }
+        
         return (
           <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
             {/* Backdrop */}
@@ -869,20 +1034,43 @@ export function CategorySection({
             {/* Snippet Content */}
             <div className="relative bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
               {/* Snippet Header */}
-              <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-[#FFB81C]/10 to-[#0047BB]/10">
-                <div className="flex items-center gap-2">
-                  <FileText className="w-5 h-5 text-[#0047BB]" />
-                  <div>
-                    <h3 className="text-gray-900">Document Snippet</h3>
-                    <p className="text-xs text-gray-600">Page {pdfRef.page} • {currentOption.citation || 'Source Document'}</p>
+              <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-[#FFB81C]/10 to-[#0047BB]/10">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-5 h-5 text-[#0047BB]" />
+                    <div>
+                      <h3 className="text-gray-900">Document Snippet</h3>
+                      <p className="text-xs text-gray-600">Page {pdfRef.page} • {currentOption.citation || 'Source Document'}</p>
+                    </div>
                   </div>
+                  <button
+                    onClick={() => setShowSnippet(null)}
+                    className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+                  >
+                    <X className="w-5 h-5 text-gray-600" />
+                  </button>
                 </div>
-                <button
-                  onClick={() => setShowSnippet(null)}
-                  className="p-1 hover:bg-gray-100 rounded-full transition-colors"
-                >
-                  <X className="w-5 h-5 text-gray-600" />
-                </button>
+                {/* Legend */}
+                <div className="flex items-center gap-4 text-xs mt-2 flex-wrap">
+                  {category === 'maintenance' ? (
+                    <>
+                      <div className="flex items-center gap-1.5">
+                        <mark className="bg-cyan-300 text-gray-900 font-semibold px-1.5 py-0.5 rounded">Responsible Party</mark>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <mark className="bg-green-300 text-gray-900 font-semibold px-1.5 py-0.5 rounded">Owner Responsibility</mark>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <mark className="bg-orange-300 text-gray-900 font-semibold px-1.5 py-0.5 rounded">Reasoning</mark>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex items-center gap-1.5">
+                      <mark className="bg-[#FFB81C] text-gray-900 font-semibold px-1.5 py-0.5 rounded">Highlighted</mark>
+                      <span className="text-gray-600">= Data extracted for this field</span>
+                    </div>
+                  )}
+                </div>
               </div>
               
               {/* Snippet Body - PDF Snapshot */}
@@ -919,21 +1107,37 @@ export function CategorySection({
                       {/* Context before snippet */}
                       <div className="text-gray-600 mb-3">
                         {pdfRef.context && !pdfRef.context.includes(pdfRef.snippet) && (
-                          <p className="mb-2">{pdfRef.context.split(pdfRef.snippet)[0]}</p>
+                          <p className="mb-2">
+                            {highlightRelevantText(
+                              pdfRef.context.split(pdfRef.snippet)[0],
+                              highlights,
+                              pdfRef.segment
+                            )}
+                          </p>
                         )}
                       </div>
                       
                       {/* Highlighted snippet */}
                       <div className="bg-yellow-200 border-l-4 border-yellow-500 pl-4 py-3 my-4 rounded-r">
                         <p className="font-medium text-gray-900">
-                          {showSnippet.snippet}
+                          {highlightRelevantText(
+                            showSnippet.snippet,
+                            highlights,
+                            pdfRef.segment
+                          )}
                         </p>
                       </div>
                       
                       {/* Context after snippet */}
                       <div className="text-gray-600 mt-3">
                         {pdfRef.context && !pdfRef.context.includes(pdfRef.snippet) && (
-                          <p>{pdfRef.context.split(pdfRef.snippet)[1]}</p>
+                          <p>
+                            {highlightRelevantText(
+                              pdfRef.context.split(pdfRef.snippet)[1],
+                              highlights,
+                              pdfRef.segment
+                            )}
+                          </p>
                         )}
                       </div>
                     </div>
