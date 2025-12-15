@@ -410,12 +410,27 @@ export function CategorySection({
   }, [activePopup]);
 
   // Filter suggestions based on current field value
+  // If field value matches any AI suggestion (or is empty), show top 3
+  // If field has been manually modified (doesn't match any suggestion), filter suggestions based on typed text
   const getFilteredSuggestions = (fieldId: string) => {
     if (!aiSuggestions[fieldId]) return [];
     
     const currentValue = formData[fieldId] || '';
-    if (!currentValue.trim()) return aiSuggestions[fieldId];
     
+    // If field is empty, show all suggestions (will be limited to top 3 in render)
+    if (!currentValue.trim()) {
+      return aiSuggestions[fieldId];
+    }
+    
+    // Check if current value matches any AI suggestion exactly
+    const matchesAnySuggestion = aiSuggestions[fieldId].some(option => option.value === currentValue);
+    
+    // If it matches a suggestion, show all suggestions (will be limited to top 3 in render)
+    if (matchesAnySuggestion) {
+      return aiSuggestions[fieldId];
+    }
+    
+    // Field has been manually modified - filter suggestions based on what user typed
     const searchTerm = currentValue.toLowerCase();
     return aiSuggestions[fieldId].filter(option => 
       option.value.toLowerCase().includes(searchTerm) ||
@@ -636,11 +651,22 @@ export function CategorySection({
           >
             <div className="text-xs text-gray-600 mb-3 flex items-center gap-2">
               <Sparkles className="w-3 h-3 text-[#DD0031]" />
-              <span>Top alternatives from Linked Documents</span>
+              <span>
+                {(() => {
+                  const currentValue = formData[activePopup.fieldId] || '';
+                  const suggestions = aiSuggestions[activePopup.fieldId] || [];
+                  const matchesAnySuggestion = currentValue.trim() && suggestions.some(opt => opt.value === currentValue);
+                  return matchesAnySuggestion ? 'Top alternatives from Linked Documents' : 'Relevant suggestions based on your input';
+                })()}
+              </span>
             </div>
             
             <div className="space-y-2 mb-3">
-              {getFilteredSuggestions(activePopup.fieldId).slice(0, 3).map((option) => (
+              {(() => {
+                const filtered = getFilteredSuggestions(activePopup.fieldId);
+                // Always show top 3 suggestions
+                const suggestionsToShow = filtered.slice(0, 3);
+                return suggestionsToShow.map((option) => (
                 <div key={option.id} className="relative">
                   <button
                     onClick={() => handleOptionSelect(activePopup.fieldId, option)}
@@ -668,16 +694,25 @@ export function CategorySection({
                     <Maximize2 className="w-3 h-3" />
                   </button>
                 </div>
-              ))}
+                ));
+              })()}
             </div>
             
-            <button
-              onClick={() => handleShowMore(activePopup.fieldId)}
-              className="w-full text-center text-sm text-[#0047BB] hover:text-[#003399] font-medium py-2 border-t border-gray-200 flex items-center justify-center gap-1"
-            >
-              <span>Show more options</span>
-              <ChevronDown className="w-4 h-4" />
-            </button>
+            {(() => {
+              const filtered = getFilteredSuggestions(activePopup.fieldId);
+              // Show "Show more" button when there are more than 3 suggestions available
+              if (filtered.length <= 3) return null;
+              
+              return (
+                <button
+                  onClick={() => handleShowMore(activePopup.fieldId)}
+                  className="w-full text-center text-sm text-[#0047BB] hover:text-[#003399] font-medium py-2 border-t border-gray-200 flex items-center justify-center gap-1"
+                >
+                  <span>Show more options</span>
+                  <ChevronDown className="w-4 h-4" />
+                </button>
+              );
+            })()}
           </div>
         </>
       )}
@@ -815,54 +850,135 @@ export function CategorySection({
       )}
       
       {/* Document Snippet Modal */}
-      {showSnippet && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          {/* Backdrop */}
-          <div
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            onClick={() => setShowSnippet(null)}
-          />
-          
-          {/* Snippet Content */}
-          <div className="relative bg-white rounded-xl shadow-2xl max-w-3xl w-full max-h-[80vh] overflow-hidden flex flex-col">
-            {/* Snippet Header */}
-            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-[#FFB81C]/10 to-[#0047BB]/10">
-              <div className="flex items-center gap-2">
-                <FileText className="w-5 h-5 text-[#0047BB]" />
-                <h3 className="text-gray-900">Document Snippet</h3>
-              </div>
-              <button
-                onClick={() => setShowSnippet(null)}
-                className="p-1 hover:bg-gray-100 rounded-full transition-colors"
-              >
-                <X className="w-5 h-5 text-gray-600" />
-              </button>
-            </div>
+      {showSnippet && (() => {
+        const currentOption = modalFieldId 
+          ? aiSuggestions[modalFieldId]?.find(opt => opt.id === showSnippet.optionId)
+          : undefined;
+        const pdfRef = currentOption?.pdfReferences?.[0];
+        
+        if (!currentOption || !pdfRef) return null;
+        
+        return (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <div
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              onClick={() => setShowSnippet(null)}
+            />
             
-            {/* Snippet Body */}
-            <div className="flex-1 overflow-y-auto px-6 py-6">
-              <div className="bg-amber-50 border-2 border-[#FFB81C] rounded-lg p-6">
-                <div className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">
-                  {showSnippet.snippet}
+            {/* Snippet Content */}
+            <div className="relative bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+              {/* Snippet Header */}
+              <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-[#FFB81C]/10 to-[#0047BB]/10">
+                <div className="flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-[#0047BB]" />
+                  <div>
+                    <h3 className="text-gray-900">Document Snippet</h3>
+                    <p className="text-xs text-gray-600">Page {pdfRef.page} • {currentOption.citation || 'Source Document'}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowSnippet(null)}
+                  className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+                >
+                  <X className="w-5 h-5 text-gray-600" />
+                </button>
+              </div>
+              
+              {/* Snippet Body - PDF Snapshot */}
+              <div className="flex-1 overflow-y-auto px-8 py-8 bg-gray-100">
+                {/* PDF Page Container */}
+                <div className="bg-white shadow-2xl mx-auto" style={{ width: '8.5in', maxWidth: '100%', minHeight: '11in' }}>
+                  {/* PDF Header */}
+                  <div className="border-b-2 border-gray-300 px-12 pt-8 pb-4">
+                    <div className="flex justify-between items-center mb-2">
+                      <div className="text-xs text-gray-500 font-semibold">COMMERCIAL LEASE AGREEMENT</div>
+                      <div className="text-xs text-gray-500">Page {pdfRef.page}</div>
+                    </div>
+                    <div className="text-xs text-gray-400 mt-1">Confidential - Property Management Document</div>
+                  </div>
+                  
+                  {/* PDF Body Content */}
+                  <div className="px-12 py-6">
+                    {/* Section Header */}
+                    {pdfRef.segment && (
+                      <div className="mb-4">
+                        <div className="text-lg font-bold text-gray-900 mb-1">
+                          {pdfRef.segment}
+                        </div>
+                        {currentOption.citation && (
+                          <div className="text-xs text-gray-500 italic mb-3">
+                            {currentOption.citation}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    
+                    {/* Main Content - Highlighted */}
+                    <div className="text-sm text-gray-800 leading-relaxed mb-6">
+                      {/* Context before snippet */}
+                      <div className="text-gray-600 mb-3">
+                        {pdfRef.context && !pdfRef.context.includes(pdfRef.snippet) && (
+                          <p className="mb-2">{pdfRef.context.split(pdfRef.snippet)[0]}</p>
+                        )}
+                      </div>
+                      
+                      {/* Highlighted snippet */}
+                      <div className="bg-yellow-200 border-l-4 border-yellow-500 pl-4 py-3 my-4 rounded-r">
+                        <p className="font-medium text-gray-900">
+                          {showSnippet.snippet}
+                        </p>
+                      </div>
+                      
+                      {/* Context after snippet */}
+                      <div className="text-gray-600 mt-3">
+                        {pdfRef.context && !pdfRef.context.includes(pdfRef.snippet) && (
+                          <p>{pdfRef.context.split(pdfRef.snippet)[1]}</p>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {/* Additional context paragraphs */}
+                    <div className="text-sm text-gray-700 leading-relaxed space-y-3 mt-6">
+                      <p>
+                        This section outlines the specific responsibilities and obligations of the parties involved 
+                        in the lease agreement. All terms are subject to the conditions specified in the master 
+                        lease document and any applicable addendums.
+                      </p>
+                      <p>
+                        For questions regarding these provisions, please refer to the complete lease agreement 
+                        or contact the property management office. Modifications to these terms require written 
+                        consent from all parties.
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {/* PDF Footer */}
+                  <div className="border-t-2 border-gray-300 px-12 py-4 mt-auto">
+                    <div className="flex justify-between items-center text-xs text-gray-500">
+                      <div>© {new Date().getFullYear()} Property Management Services</div>
+                      <div>Document ID: LEASE-{pdfRef.page}-{String(Math.floor(Math.random() * 1000)).padStart(3, '0')}</div>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-            
-            {/* Snippet Footer */}
-            <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between bg-gray-50">
-              <p className="text-xs text-gray-500">
-                This is an excerpt from the source document showing the relevant context.
-              </p>
-              <button
-                onClick={() => setShowSnippet(null)}
-                className="px-4 py-2 bg-[#0047BB] text-white rounded-lg hover:bg-[#003399] transition-colors"
-              >
-                Close
-              </button>
+              
+              {/* Snippet Footer */}
+              <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between bg-gray-50">
+                <p className="text-xs text-gray-500">
+                  This is a visual representation of the relevant section from the source document.
+                </p>
+                <button
+                  onClick={() => setShowSnippet(null)}
+                  className="px-4 py-2 bg-[#0047BB] text-white rounded-lg hover:bg-[#003399] transition-colors"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
