@@ -9,6 +9,7 @@ interface CategorySectionProps {
   formData: Record<string, string>;
   onFieldChange: (fieldId: string, value: string) => void;
   onAIUsed?: () => void;
+  onAIReset?: () => void;
 }
 
 interface PDFReference {
@@ -279,6 +280,7 @@ export function CategorySection({
   formData,
   onFieldChange,
   onAIUsed,
+  onAIReset,
 }: CategorySectionProps) {
   const [aiSuggestions, setAiSuggestions] = useState<FieldOptions>({});
   const [isAIFilled, setIsAIFilled] = useState(false);
@@ -736,6 +738,10 @@ export function CategorySection({
                   fields.forEach(field => {
                     onFieldChange(field.id, '');
                   });
+                  // Notify parent that AI has been reset
+                  if (onAIReset) {
+                    onAIReset();
+                  }
                 }}
                 className="text-xs text-green-700 hover:text-green-900 underline"
               >
@@ -784,6 +790,16 @@ export function CategorySection({
                 const filtered = getFilteredSuggestions(activePopup.fieldId);
                 // Always show top 3 suggestions
                 const suggestionsToShow = filtered.slice(0, 3);
+                
+                // Show "No relevant suggestions" if no suggestions match
+                if (suggestionsToShow.length === 0) {
+                  return (
+                    <div className="text-center py-6 text-sm text-gray-500">
+                      No relevant suggestions
+                    </div>
+                  );
+                }
+                
                 return suggestionsToShow.map((option) => (
                 <div key={option.id} className="relative">
                   <button

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { CategorySection } from './CategorySection';
 
@@ -11,11 +11,43 @@ export function AgreementForm({ formData, onFieldChange }: AgreementFormProps) {
   const [isExpanded, setIsExpanded] = useState(true);
   const [isAIUsed, setIsAIUsed] = useState(false);
   const [isAIApproved, setIsAIApproved] = useState(false);
+  const approvedDataSnapshot = useRef<Record<string, string> | null>(null);
 
   const handleAIUsed = () => {
     setIsAIUsed(true);
     setIsAIApproved(false); // Reset approval when AI is used again
+    approvedDataSnapshot.current = null; // Clear snapshot when AI is used again
   };
+
+  const handleAIReset = () => {
+    setIsAIUsed(false);
+    setIsAIApproved(false);
+    approvedDataSnapshot.current = null;
+  };
+
+  const handleApprove = () => {
+    setIsAIApproved(true);
+    // Save a snapshot of the current form data when approved
+    approvedDataSnapshot.current = { ...formData };
+  };
+
+  // Check if form data has changed after approval
+  useEffect(() => {
+    if (isAIUsed && isAIApproved && approvedDataSnapshot.current) {
+      // Compare current form data with approved snapshot
+      // We only care about maintenance fields that could have been filled by AI
+      const maintenanceFields = ['responsibleParty', 'maintenanceOwnerResponsibility', 'maintenanceReasoning'];
+      const hasChanged = maintenanceFields.some(fieldId => {
+        const currentValue = formData[fieldId] || '';
+        const approvedValue = approvedDataSnapshot.current![fieldId] || '';
+        return currentValue !== approvedValue;
+      });
+
+      if (hasChanged) {
+        setIsAIApproved(false);
+      }
+    }
+  }, [formData, isAIUsed, isAIApproved]);
 
   return (
     <div className="bg-white rounded-lg shadow-sm">
@@ -61,6 +93,7 @@ export function AgreementForm({ formData, onFieldChange }: AgreementFormProps) {
                 formData={formData}
                 onFieldChange={onFieldChange}
                 onAIUsed={handleAIUsed}
+                onAIReset={handleAIReset}
               />
 
               {/* Billing Section */}
@@ -138,7 +171,7 @@ export function AgreementForm({ formData, onFieldChange }: AgreementFormProps) {
               </span>
             </div>
             <button
-              onClick={() => setIsAIApproved(true)}
+              onClick={handleApprove}
               className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
             >
               Approve
