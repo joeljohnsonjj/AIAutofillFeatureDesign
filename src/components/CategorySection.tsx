@@ -8,6 +8,7 @@ interface CategorySectionProps {
   fields: FormField[];
   formData: Record<string, string>;
   onFieldChange: (fieldId: string, value: string) => void;
+  onAIUsed?: () => void;
 }
 
 interface PDFReference {
@@ -277,6 +278,7 @@ export function CategorySection({
   fields,
   formData,
   onFieldChange,
+  onAIUsed,
 }: CategorySectionProps) {
   const [aiSuggestions, setAiSuggestions] = useState<FieldOptions>({});
   const [isAIFilled, setIsAIFilled] = useState(false);
@@ -309,6 +311,10 @@ export function CategorySection({
       
       setIsAIFilled(true);
       setIsLoading(false);
+      // Notify parent that AI has been used
+      if (onAIUsed) {
+        onAIUsed();
+      }
     }, 1500);
   };
 

@@ -9,6 +9,13 @@ interface AgreementFormProps {
 
 export function AgreementForm({ formData, onFieldChange }: AgreementFormProps) {
   const [isExpanded, setIsExpanded] = useState(true);
+  const [isAIUsed, setIsAIUsed] = useState(false);
+  const [isAIApproved, setIsAIApproved] = useState(false);
+
+  const handleAIUsed = () => {
+    setIsAIUsed(true);
+    setIsAIApproved(false); // Reset approval when AI is used again
+  };
 
   return (
     <div className="bg-white rounded-lg shadow-sm">
@@ -53,6 +60,7 @@ export function AgreementForm({ formData, onFieldChange }: AgreementFormProps) {
                 ]}
                 formData={formData}
                 onFieldChange={onFieldChange}
+                onAIUsed={handleAIUsed}
               />
 
               {/* Billing Section */}
@@ -119,6 +127,26 @@ export function AgreementForm({ formData, onFieldChange }: AgreementFormProps) {
         </div>
       </div>
 
+      {/* AI Approval Section */}
+      {isAIUsed && !isAIApproved && (
+        <div className="border-t border-gray-200 px-6 py-4 bg-amber-50/50">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-2 h-2 bg-amber-500 rounded-full"></div>
+              <span className="text-sm text-gray-700">
+                AI has been used to fill fields. Please review and approve before finishing.
+              </span>
+            </div>
+            <button
+              onClick={() => setIsAIApproved(true)}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+            >
+              Approve
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Footer Buttons */}
       <div className="border-t border-gray-200 px-6 py-4 flex items-center justify-between">
         <button className="px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-md">
@@ -128,7 +156,14 @@ export function AgreementForm({ formData, onFieldChange }: AgreementFormProps) {
           <button className="px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-md">
             Add another agreement
           </button>
-          <button className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+          <button 
+            className={`px-6 py-2 rounded-md transition-colors ${
+              isAIUsed && !isAIApproved
+                ? 'bg-gray-400 text-gray-600 cursor-not-allowed'
+                : 'bg-blue-600 text-white hover:bg-blue-700'
+            }`}
+            disabled={isAIUsed && !isAIApproved}
+          >
             Finish
           </button>
         </div>
