@@ -431,14 +431,13 @@ export function CategorySection({
     isTextarea: boolean = false
   ) => {
     const hasAISuggestions = isAIFilled && aiSuggestions[fieldId];
-    const isPopupOpen = activePopup?.fieldId === fieldId;
 
     return (
       <div id={`field-${fieldId}`} className="relative">
         <label className="block text-sm text-gray-700 mb-2">
           {label} <span className="text-red-500">*</span>
         </label>
-        <div className="relative" ref={(el) => fieldRefs.current[fieldId] = el}>
+        <div className="relative" ref={(el) => { fieldRefs.current[fieldId] = el; }}>
           {isTextarea ? (
             <textarea
               placeholder={placeholder}
@@ -672,15 +671,13 @@ export function CategorySection({
               ))}
             </div>
             
-            {getFilteredSuggestions(activePopup.fieldId).length > 3 && (
-              <button
-                onClick={() => handleShowMore(activePopup.fieldId)}
-                className="w-full text-center text-sm text-[#0047BB] hover:text-[#003399] font-medium py-2 border-t border-gray-200 flex items-center justify-center gap-1"
-              >
-                <span>Show more options</span>
-                <ChevronDown className="w-4 h-4" />
-              </button>
-            )}
+            <button
+              onClick={() => handleShowMore(activePopup.fieldId)}
+              className="w-full text-center text-sm text-[#0047BB] hover:text-[#003399] font-medium py-2 border-t border-gray-200 flex items-center justify-center gap-1"
+            >
+              <span>Show more options</span>
+              <ChevronDown className="w-4 h-4" />
+            </button>
           </div>
         </>
       )}
