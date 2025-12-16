@@ -8,7 +8,7 @@ export function AIFillHelp() {
     return (
       <button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 z-50 bg-purple-600 text-white rounded-full p-3 shadow-lg hover:bg-purple-700 transition-colors"
+        className="fixed bottom-6 right-6 z-50 bg-blue-600 text-white rounded-full p-3 shadow-lg hover:bg-blue-700 transition-colors"
         title="How to use AI Fill Mode"
       >
         <HelpCircle className="w-6 h-6" />
@@ -18,7 +18,7 @@ export function AIFillHelp() {
 
   return (
     <div className="fixed bottom-6 right-6 z-50 bg-white rounded-xl shadow-2xl border border-gray-200 w-96 max-h-[80vh] overflow-y-auto">
-      <div className="sticky top-0 bg-gradient-to-r from-purple-600 to-blue-600 px-6 py-4 flex items-center justify-between rounded-t-xl">
+      <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-teal-600 px-6 py-4 flex items-center justify-between rounded-t-xl">
         <h3 className="text-white">How to Use AI Fill Mode</h3>
         <button
           onClick={() => setIsOpen(false)}
@@ -32,15 +32,15 @@ export function AIFillHelp() {
         {/* Flow 1 */}
         <div>
           <div className="flex items-center gap-2 mb-2">
-            <div className="bg-purple-100 text-purple-700 rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold">
+            <div className="bg-blue-100 text-blue-700 rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold">
               1
             </div>
-            <h4 className="text-sm font-medium text-gray-900">Search → Snippet → Apply</h4>
+            <h4 className="text-sm font-medium text-gray-900">Search → AI Summary → Apply</h4>
           </div>
           <ol className="text-sm text-gray-600 space-y-1 ml-8 list-decimal">
             <li>Type keywords in the global search bar</li>
-            <li>Snippet carousel appears over PDF viewer</li>
-            <li>Navigate snippets with Next/Prev buttons</li>
+            <li>AI Summary cards appear showing field-by-field information</li>
+            <li>Click on any card to flip and view PDF reference</li>
             <li>Click "APPLY TO X FIELDS" to fill form</li>
           </ol>
         </div>
@@ -77,10 +77,10 @@ export function AIFillHelp() {
           </ol>
         </div>
 
-        <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-          <p className="text-xs text-purple-900 font-medium mb-1">💡 Pro Tip</p>
-          <p className="text-xs text-purple-700">
-            The snippet carousel highlights the exact PDF location and automatically maps evidence to multiple related fields simultaneously.
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <p className="text-xs text-blue-900 font-medium mb-1">💡 Pro Tip</p>
+          <p className="text-xs text-blue-700">
+            The AI Summary shows field-by-field information first. Click on any card to flip and view the PDF reference with highlighted evidence.
           </p>
         </div>
       </div>

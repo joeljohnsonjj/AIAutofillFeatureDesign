@@ -1,5 +1,5 @@
-import React, { useRef, useEffect } from 'react';
-import { Check, X, Eye } from 'lucide-react';
+import React, { useRef, useEffect, useState } from 'react';
+import { Check, X, Eye, FileText, RotateCcw } from 'lucide-react';
 import {
   Tooltip,
   TooltipContent,
@@ -15,12 +15,19 @@ interface Highlight {
   color: string;
 }
 
+interface PageReference {
+  page: number;
+  fullText: string;
+  highlights?: Highlight[];
+}
+
 interface PDFReference {
   page: number;
   segment: string;
   context?: string;
   fullText?: string;
   highlights?: Highlight[];
+  pageReferences?: PageReference[]; // Additional pages with references
 }
 
 interface Snippet {
@@ -147,10 +154,10 @@ export function SnippetList({
     return <>{parts}</>;
   };
 
-  // Component for individual scrollable snippet
+  // Component for individual scrollable snippet with flip card
   const ScrollableSnippet = ({ snippet, index }: { snippet: Snippet; index: number }) => {
-    // Auto-scroll to first highlight on mount - Keep this enabled
-    // Note: The actual scrolling happens in PDFSnippetViewer component
+    const [isFlipped, setIsFlipped] = useState(false);
+    const scrollToPageRef = useRef<((page: number) => void) | null>(null);
 
     const handleEyeHover = () => {
       // Preview snippet (show ghost text) when hovering over eye icon
@@ -159,104 +166,253 @@ export function SnippetList({
       }
     };
 
+    const handleCardClick = (e: React.MouseEvent) => {
+      // Don't flip if clicking on buttons or interactive elements
+      const target = e.target as HTMLElement;
+      if (target.closest('button') || target.closest('[role="button"]')) {
+        return;
+      }
+      setIsFlipped(!isFlipped);
+    };
+
     return (
       <div
         key={snippet.id}
-        className="bg-white rounded-lg shadow-md border border-gray-200 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300 transition-all hover:shadow-lg hover:border-gray-300"
+        className="bg-white rounded-lg shadow-md border border-gray-200 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300 transition-all hover:shadow-lg hover:border-gray-300 cursor-pointer"
         style={{ 
           animationDelay: `${index * 50}ms`,
         }}
+        onClick={handleCardClick}
       >
-        {/* Snippet Header */}
-        <div className="bg-gray-100 px-4 py-2 border-b border-gray-200">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-gray-600">
-              Page {snippet.pdfReference.page} • {snippet.title}
-            </span>
-            <div className="flex items-center gap-2">
-              {/* Eye Icon for Preview */}
-              <div
-                className="relative group"
-                onMouseEnter={handleEyeHover}
-              >
-                <button
-                  className="p-1.5 rounded-md hover:bg-purple-100 text-gray-600 hover:text-purple-600 transition-colors"
-                  title="Hover to preview in form fields"
-                >
-                  <Eye className="w-4 h-4" />
-                </button>
+        {/* Card Container with Flip Effect */}
+        <div className="relative" style={{ perspective: '1000px', minHeight: '400px' }}>
+          <div
+            className="relative w-full transition-transform duration-500"
+            style={{
+              transformStyle: 'preserve-3d',
+              transform: isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
+            }}
+          >
+            {/* Front Side - AI Summary */}
+            <div
+              className="w-full"
+              style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' }}
+            >
+              {/* AI Summary Content */}
+              <div className="p-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-blue-600" />
+                      AI Summary
+                    </h4>
+                    <p className="text-xs text-gray-500 mb-4">
+                      This snippet will fill the following fields:
+                    </p>
+                  </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsFlipped(true);
+                    }}
+                    className="text-xs text-red-600 hover:text-red-700 underline flex-shrink-0 font-medium"
+                    title="View PDF reference"
+                  >
+                    View Reference
+                  </button>
+                </div>
+
+                {/* Field Mappings Display */}
+                <div className="space-y-3">
+                  {Object.entries(snippet.fieldMappings).map(([fieldId, value]) => {
+                    // Find the matched field name
+                    const fieldName = snippet.matchedFields.find(f => 
+                      f.toLowerCase().replace(/\s+/g, '') === fieldId.toLowerCase().replace(/\s+/g, '')
+                    ) || fieldId;
+                    
+                    return (
+                      <div key={fieldId} className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                        <div className="flex items-start gap-2">
+                          <div className="flex-shrink-0 mt-0.5">
+                            <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold text-gray-700 mb-1">
+                              {fieldName}
+                            </p>
+                            <p className="text-sm text-gray-900 leading-relaxed">
+                              {value as string}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Click to view reference hint */}
+                <div className="mt-4 pt-3 border-t border-gray-200">
+                  <p className="text-xs text-gray-500 text-center flex items-center justify-center gap-1">
+                    <FileText className="w-3 h-3 text-red-500" />
+                    Click card to view PDF reference
+                  </p>
+                </div>
               </div>
-              {snippet.confidenceScore !== undefined && (
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-medium text-gray-600">Confidence:</span>
-                  <div className="flex items-center gap-1">
-                    <div className="w-16 h-2 bg-gray-200 rounded-full overflow-hidden">
-                      <div 
-                        className={`h-full transition-all ${
-                          snippet.confidenceScore >= 80 ? 'bg-green-500' :
-                          snippet.confidenceScore >= 60 ? 'bg-yellow-500' :
-                          'bg-orange-500'
-                        }`}
-                        style={{ width: `${snippet.confidenceScore}%` }}
+
+              {/* Accept and Preview Buttons */}
+              <div className="px-4 pb-4" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center gap-3">
+                  {/* Preview Button */}
+                  <button
+                    onMouseEnter={() => {
+                      if (onPreview) {
+                        onPreview(snippet);
+                      }
+                    }}
+                    onMouseLeave={() => {
+                      if (onPreview) {
+                        // Clear preview by passing empty ghost values
+                        onPreview({ ...snippet, fieldMappings: {} } as any);
+                      }
+                    }}
+                    className="flex-1 px-4 py-2.5 border border-blue-300 rounded-lg hover:bg-blue-50 hover:border-blue-400 transition-colors flex items-center justify-center gap-2 text-blue-700"
+                  >
+                    <Eye className="w-4 h-4" />
+                    <span className="text-sm font-medium">Preview</span>
+                  </button>
+                  
+                  {/* Accept Button */}
+                  <button
+                    onClick={() => onApply(snippet)}
+                    className="flex-1 px-4 py-2.5 border border-red-300 rounded-lg hover:bg-red-50 hover:border-red-400 transition-colors flex items-center justify-center gap-2 text-red-700"
+                  >
+                    <Check className="w-4 h-4" />
+                    <span className="text-sm font-medium">Accept</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Back Side - PDF Snippet */}
+            <div
+              className="absolute inset-0 w-full"
+              style={{
+                backfaceVisibility: 'hidden',
+                WebkitBackfaceVisibility: 'hidden',
+                transform: 'rotateY(180deg)',
+              }}
+            >
+              {/* Header with Back Button and References */}
+              <div className="px-4 pt-4 pb-2 flex items-center justify-between gap-3">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsFlipped(false);
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md hover:bg-red-50 text-red-700 transition-colors border border-red-300"
+                  title="Back to summary"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  <span className="text-xs font-medium">Back to Summary</span>
+                </button>
+                
+                {/* Reference Tags - show if there are multiple pages */}
+                {snippet.pdfReference.pageReferences && snippet.pdfReference.pageReferences.length > 0 && (
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-medium text-gray-700">References:</span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (scrollToPageRef.current) {
+                          scrollToPageRef.current(snippet.pdfReference.page);
+                        }
+                      }}
+                      className="px-2.5 py-1 text-xs rounded-md transition-colors font-medium bg-white border border-blue-300 text-blue-700 hover:bg-blue-50 hover:border-blue-400"
+                      title={`Go to page ${snippet.pdfReference.page}`}
+                    >
+                      Page {snippet.pdfReference.page}
+                    </button>
+                    {snippet.pdfReference.pageReferences.map((pageRef) => (
+                      <button
+                        key={pageRef.page}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (scrollToPageRef.current) {
+                            scrollToPageRef.current(pageRef.page);
+                          }
+                        }}
+                        className="px-2.5 py-1 text-xs rounded-md transition-colors font-medium bg-white border border-blue-300 text-blue-700 hover:bg-blue-50 hover:border-blue-400"
+                        title={`Go to page ${pageRef.page}`}
+                      >
+                        Page {pageRef.page}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* PDF-like Content - Scrollable */}
+              <div className="p-4">
+                <div className="bg-white border border-gray-300 shadow-inner rounded overflow-hidden">
+                  {/* Scrollable PDF container - full document view */}
+                  <div className="bg-gray-100 p-2">
+                    {snippet.pdfReference.fullText ? (
+                      <PDFSnippetViewer
+                        fullText={snippet.pdfReference.fullText}
+                        highlights={snippet.pdfReference.highlights}
+                        pageNumber={snippet.pdfReference.page}
+                        title={snippet.title}
+                        pageReferences={snippet.pdfReference.pageReferences}
+                        onPageClick={(page) => {
+                          // Scroll to page is handled internally by PDFSnippetViewer
+                        }}
+                        onScrollToPageReady={(scrollFn) => {
+                          scrollToPageRef.current = scrollFn;
+                        }}
                       />
-                    </div>
-                    <span className={`text-xs font-semibold ${
-                      snippet.confidenceScore >= 80 ? 'text-green-700' :
-                      snippet.confidenceScore >= 60 ? 'text-yellow-700' :
-                      'text-orange-700'
-                    }`}>
-                      {snippet.confidenceScore}%
-                    </span>
+                    ) : (
+                      <div className="p-4 bg-white border border-gray-300 rounded">
+                        <p>{snippet.pdfReference.context}</p>
+                      </div>
+                    )}
                   </div>
                 </div>
-              )}
-              <div className="flex items-center gap-1">
-                {snippet.matchedFields.map((field) => (
-                  <span
-                    key={field}
-                    className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded"
+              </div>
+
+              {/* Accept and Preview Buttons */}
+              <div className="px-4 pb-4" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center gap-3">
+                  {/* Preview Button */}
+                  <button
+                    onMouseEnter={() => {
+                      if (onPreview) {
+                        onPreview(snippet);
+                      }
+                    }}
+                    onMouseLeave={() => {
+                      if (onPreview) {
+                        // Clear preview by passing empty ghost values
+                        onPreview({ ...snippet, fieldMappings: {} } as any);
+                      }
+                    }}
+                    className="flex-1 px-4 py-2.5 border border-blue-300 rounded-lg hover:bg-blue-50 hover:border-blue-400 transition-colors flex items-center justify-center gap-2 text-blue-700"
                   >
-                    {field}
-                  </span>
-                ))}
+                    <Eye className="w-4 h-4" />
+                    <span className="text-sm font-medium">Preview</span>
+                  </button>
+                  
+                  {/* Accept Button */}
+                  <button
+                    onClick={() => onApply(snippet)}
+                    className="flex-1 px-4 py-2.5 border border-red-300 rounded-lg hover:bg-red-50 hover:border-red-400 transition-colors flex items-center justify-center gap-2 text-red-700"
+                  >
+                    <Check className="w-4 h-4" />
+                    <span className="text-sm font-medium">Accept</span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-
-        {/* PDF-like Content - Scrollable */}
-        <div className="p-4">
-          <div className="bg-white border border-gray-300 shadow-inner rounded overflow-hidden">
-            {/* Scrollable PDF container - full document view */}
-            <div className="bg-gray-100 p-2">
-              {snippet.pdfReference.fullText ? (
-                <PDFSnippetViewer
-                  fullText={snippet.pdfReference.fullText}
-                  highlights={snippet.pdfReference.highlights}
-                  pageNumber={snippet.pdfReference.page}
-                  title={snippet.title}
-                />
-              ) : (
-                <div className="p-4 bg-white border border-gray-300 rounded">
-                  <p>{snippet.pdfReference.context}</p>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Apply Button */}
-        <div className="px-4 pb-4" onMouseEnter={(e) => e.stopPropagation()} onMouseLeave={(e) => e.stopPropagation()}>
-          <button
-            onClick={() => onApply(snippet)}
-            className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
-          >
-            <Check className="w-4 h-4" />
-            APPLY TO {snippet.matchedFields.length} FIELD{snippet.matchedFields.length !== 1 ? 'S' : ''}
-          </button>
-          <p className="text-xs text-gray-500 text-center mt-2">
-            Hover 👁️ icon to preview • Click button to apply
-          </p>
         </div>
       </div>
     );
@@ -265,17 +421,17 @@ export function SnippetList({
   return (
     <div className="h-full flex flex-col bg-gray-50 animate-in fade-in slide-in-from-left-4 duration-300">
       {/* Header */}
-      <div className="bg-gradient-to-r from-purple-600 to-blue-600 px-4 py-3 flex items-center justify-between">
+      <div className="bg-gradient-to-r from-blue-600 to-teal-600 px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
           {isAnalyzing ? (
             <AIAnalyzingAnimation message="Analyzing documents..." size="sm" />
           ) : (
             <>
               <span className="text-white font-medium">
-                {searchQuery ? `Results for "${searchQuery}"` : 'Evidence Snippets'}
+                {searchQuery ? `Results for "${searchQuery}"` : 'AI Auto Fill'}
               </span>
-              <span className="bg-white/20 text-white text-xs px-2 py-1 rounded">
-                {snippets.length} found
+              <span className="bg-white/20 text-white text-xs px-2 py-1 rounded font-semibold">
+                {snippets.length} {snippets.length === 1 ? 'snippet' : 'snippets'} found
               </span>
             </>
           )}

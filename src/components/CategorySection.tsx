@@ -13,6 +13,7 @@ interface CategorySectionProps {
   ghostValues?: Record<string, string>;
   onAcceptGhost?: (fieldId: string) => void;
   onFieldSearch?: (fieldId: string, value: string) => void;
+  onToggleAiMode?: (enabled: boolean) => void;
 }
 
 interface PDFReference {
@@ -149,6 +150,7 @@ export function CategorySection({
   ghostValues = {},
   onAcceptGhost,
   onFieldSearch,
+  onToggleAiMode,
 }: CategorySectionProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [aiResponses, setAiResponses] = useState<AIResponse[]>([]);
@@ -403,7 +405,22 @@ export function CategorySection({
       <div className="px-6 py-6">
         {/* Category Header */}
         <div className="mb-4">
-          <h2 className="text-gray-900 mb-4">{title}</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-gray-900">{title}</h2>
+            {/* AI Fill Toggle - Only show in maintenance section when AI mode is OFF */}
+            {category === 'maintenance' && !aiMode && onToggleAiMode && (
+              <div className="flex items-center gap-3 animate-in fade-in slide-in-from-right duration-300">
+                <span className="text-sm text-gray-700">AI Fill</span>
+                <button
+                  onClick={() => onToggleAiMode(true)}
+                  className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors bg-gray-300 hover:bg-gray-400"
+                >
+                  <span className="inline-block h-4 w-4 transform rounded-full bg-white transition-transform translate-x-1" />
+                </button>
+                <span className="text-xs font-medium text-gray-500">OFF</span>
+              </div>
+            )}
+          </div>
           
           {/* AI Search Bar - REMOVED per user request */}
           {false && category === 'maintenance' && !aiMode && (

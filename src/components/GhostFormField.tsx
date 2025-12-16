@@ -65,7 +65,7 @@ export function GhostFormField({
       <label className="block text-sm text-gray-700 mb-2 flex items-center gap-2">
         {label} <span className="text-red-500">*</span>
         {isGhosted && (
-          <span className="text-xs text-purple-600 flex items-center gap-1">
+          <span className="text-xs text-red-600 flex items-center gap-1">
             👻 Preview
           </span>
         )}
@@ -83,7 +83,7 @@ export function GhostFormField({
             rows={3}
             className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none transition-all ${
               isGhosted
-                ? 'border-purple-300 bg-purple-50 text-purple-700 italic'
+                ? 'border-red-300 bg-red-50 text-red-700 italic'
                 : 'border-gray-300 bg-white'
             }`}
           />
@@ -98,7 +98,7 @@ export function GhostFormField({
             onBlur={onBlur}
             className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all ${
               isGhosted
-                ? 'border-purple-300 bg-purple-50 text-purple-700 italic'
+                ? 'border-red-300 bg-red-50 text-red-700 italic'
                 : 'border-gray-300 bg-white'
             }`}
           />

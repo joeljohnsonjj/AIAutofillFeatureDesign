@@ -9,6 +9,7 @@ interface AgreementFormProps {
   ghostValues?: Record<string, string>;
   onAcceptGhost?: (fieldId: string) => void;
   onFieldSearch?: (fieldId: string, value: string) => void;
+  onToggleAiMode?: (enabled: boolean) => void;
 }
 
 export function AgreementForm({ 
@@ -18,6 +19,7 @@ export function AgreementForm({
   ghostValues = {},
   onAcceptGhost,
   onFieldSearch,
+  onToggleAiMode,
 }: AgreementFormProps) {
   const [isExpanded, setIsExpanded] = useState(true);
 
@@ -68,6 +70,7 @@ export function AgreementForm({
                 ghostValues={ghostValues}
                 onAcceptGhost={onAcceptGhost}
                 onFieldSearch={onFieldSearch}
+                onToggleAiMode={onToggleAiMode}
               />
 
               {/* Billing Section */}

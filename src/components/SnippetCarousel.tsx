@@ -84,7 +84,7 @@ export function SnippetCarousel({
           <Tooltip delayDuration={200}>
             <TooltipTrigger asChild>
               <mark 
-                className={`${highlight.color} px-0.5 cursor-help transition-all hover:ring-2 hover:ring-purple-400 hover:ring-offset-1 rounded-sm`}
+                className={`${highlight.color} px-0.5 cursor-help transition-all hover:ring-2 hover:ring-blue-400 hover:ring-offset-1 rounded-sm`}
               >
                 {highlight.text}
               </mark>
@@ -113,7 +113,7 @@ export function SnippetCarousel({
     <div className="absolute bottom-6 left-6 right-6 z-30">
       <div className="bg-white rounded-xl shadow-2xl border border-gray-300 overflow-hidden max-w-3xl">
         {/* Carousel Header */}
-        <div className="bg-gradient-to-r from-purple-600 to-blue-600 px-6 py-3 flex items-center justify-between">
+        <div className="bg-gradient-to-r from-blue-600 to-teal-600 px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <span className="bg-white/20 text-white text-xs font-medium px-2 py-1 rounded">
               PDF Evidence {currentIndex + 1}/{snippets.length}
@@ -163,7 +163,7 @@ export function SnippetCarousel({
             {currentSnippet.matchedFields.map((field) => (
               <span
                 key={field}
-                className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded border border-purple-200"
+                className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded border border-blue-200"
               >
                 {field}
               </span>

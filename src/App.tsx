@@ -46,6 +46,40 @@ const SNIPPET_DATABASE = [
           field: 'Legal Notes',
           color: 'bg-yellow-200'
         }
+      ],
+      pageReferences: [
+        {
+          page: 14,
+          fullText: 'PAGE 14\n\nSection 3.4: Extended Maintenance Provisions\nAs referenced in Section 3.2, the Owner\'s responsibility extends to all major capital improvements exceeding $10,000 in value. This includes but is not limited to roof replacement, HVAC system upgrades, and structural modifications required for code compliance.\n\nThe Owner must provide written notice to the Tenant at least 30 days prior to commencing any major maintenance work that may disrupt Tenant operations.',
+          highlights: [
+            {
+              text: 'major capital improvements exceeding $10,000 in value',
+              field: 'Maintenance Owner Responsibility',
+              color: 'bg-green-200'
+            },
+            {
+              text: 'Section 3.4',
+              field: 'Legal Notes',
+              color: 'bg-yellow-200'
+            }
+          ]
+        },
+        {
+          page: 16,
+          fullText: 'PAGE 16\n\nSection 3.6: Emergency Maintenance Procedures\nIn cases of emergency maintenance situations affecting structural integrity or life safety systems, the Property Owner shall respond within 24 hours as outlined in Section 3.2. Emergency repairs include but are not limited to: foundation failures, roof collapses, electrical system failures, and plumbing emergencies that pose immediate safety hazards.\n\nAll emergency maintenance costs shall be borne by the Owner per the terms established in Section 3.2 of this agreement.',
+          highlights: [
+            {
+              text: 'Emergency maintenance situations affecting structural integrity or life safety systems',
+              field: 'Maintenance Owner Responsibility',
+              color: 'bg-green-200'
+            },
+            {
+              text: 'Section 3.6',
+              field: 'Legal Notes',
+              color: 'bg-yellow-200'
+            }
+          ]
+        }
       ]
     },
     fieldMappings: {
@@ -77,6 +111,24 @@ const SNIPPET_DATABASE = [
           text: 'Triple Net (NNN) lease structure', 
           field: 'Legal Notes',
           color: 'bg-yellow-200'
+        }
+      ],
+      pageReferences: [
+        {
+          page: 10,
+          fullText: 'PAGE 10\n\nSection 2.3: Detailed NNN Obligations\nAs referenced in Section 2.1, the comprehensive responsibility includes all operational expenses such as utilities, landscaping, parking lot maintenance, and common area upkeep. The Tenant is also responsible for property insurance premiums and all real estate taxes associated with the leased premises.\n\nThese obligations are in addition to the base rent and must be paid separately as outlined in Schedule D of this agreement.',
+          highlights: [
+            {
+              text: 'comprehensive responsibility includes all operational expenses',
+              field: 'Responsible Party',
+              color: 'bg-blue-200'
+            },
+            {
+              text: 'property insurance premiums and all real estate taxes',
+              field: 'Maintenance Owner Responsibility',
+              color: 'bg-green-200'
+            }
+          ]
         }
       ]
     },
@@ -287,6 +339,7 @@ export default function App() {
   const handleFieldSearchWithData = (fieldId: string, searchValue: string, currentFormData: Record<string, string>) => {
     // Reverse search: when user types in maintenance field, show snippets
     // Consider ALL three bound fields together, not just the current field
+    // IMPORTANT: Do NOT auto-fill while typing - only show snippets for user to choose
     if (!aiMode) {
       return;
     }
@@ -295,7 +348,7 @@ export default function App() {
     setIsAnalyzing(true);
     
     // If searchValue is too short, check if other fields have values
-    // If no fields have values, show all snippets
+    // If no fields have values, show all snippets (but don't auto-fill)
     if (!searchValue || searchValue.trim().length < 2) {
       const boundFields = ['responsibleParty', 'maintenanceOwnerResponsibility', 'maintenanceReasoning'];
       const hasAnyFieldValue = boundFields.some(fid => {
@@ -303,7 +356,7 @@ export default function App() {
         return value && value.length >= 2;
       });
       
-      // If no fields have values, show all snippets
+      // If no fields have values, show all snippets (but don't auto-fill)
       if (!hasAnyFieldValue) {
         const snippetsWithConfidence = SNIPPET_DATABASE.map(snippet => ({
           ...snippet,
@@ -317,13 +370,7 @@ export default function App() {
           });
         }
         setIsAnalyzing(false);
-        // Auto-populate first snippet if it's different from the last one
-        setTimeout(() => {
-          if (snippetsWithConfidence.length > 0 && lastAutoPopulatedSnippetId.current !== snippetsWithConfidence[0].id) {
-            lastAutoPopulatedSnippetId.current = snippetsWithConfidence[0].id;
-            handleApplySnippet(snippetsWithConfidence[0], true);
-          }
-        }, 100);
+        // DO NOT auto-populate - user should choose manually
       } else {
         setIsAnalyzing(false);
       }
@@ -354,7 +401,7 @@ export default function App() {
       }
     });
 
-    // If no fields have values, show all snippets (like when AI fill is first clicked)
+    // If no fields have values, show all snippets (but don't auto-fill)
     if (Object.keys(fieldValues).length === 0) {
       const snippetsWithConfidence = SNIPPET_DATABASE.map(snippet => ({
         ...snippet,
@@ -368,13 +415,7 @@ export default function App() {
         });
       }
       setIsAnalyzing(false);
-      // Auto-populate first snippet if it's different from the last one
-      setTimeout(() => {
-        if (snippetsWithConfidence.length > 0 && lastAutoPopulatedSnippetId.current !== snippetsWithConfidence[0].id) {
-          lastAutoPopulatedSnippetId.current = snippetsWithConfidence[0].id;
-          handleApplySnippet(snippetsWithConfidence[0], true);
-        }
-      }, 100);
+      // DO NOT auto-populate - user should choose manually
       return;
     }
 
@@ -596,9 +637,18 @@ export default function App() {
           });
           return scoreB - scoreA;
         });
+        
+        // Add confidence scores to matches based on match quality
+        matches = matches.map((snippet, index) => ({
+          ...snippet,
+          confidenceScore: Math.max(60, 100 - (index * 5)), // Higher confidence for better matches
+        }));
       } else {
         // No fields filled - show all snippets and auto-prefill first one
-        matches = [...SNIPPET_DATABASE];
+        matches = SNIPPET_DATABASE.map(snippet => ({
+          ...snippet,
+          confidenceScore: 50, // Default confidence when no search criteria
+        }));
         shouldAutoPrefill = true;
       }
 
@@ -606,6 +656,12 @@ export default function App() {
       if (filledFields.length > 0 && filledFields.length < 3) {
         shouldAutoPrefill = true;
       }
+
+      // Ensure all snippets have confidence scores (fallback)
+      matches = matches.map(snippet => ({
+        ...snippet,
+        confidenceScore: snippet.confidenceScore !== undefined ? snippet.confidenceScore : 50,
+      }));
 
       // Show matching snippets
       if (matches.length > 0) {
@@ -794,9 +850,14 @@ export default function App() {
     }
   };
 
-  // Preview snippet - shows ghost text (used when user clicks on snippet)
+  // Preview snippet - shows ghost text (used when hovering over preview button)
   const handlePreviewSnippet = (snippet: any) => {
-    console.log('handlePreviewSnippet called with snippet:', snippet);
+    // If snippet has no field mappings, clear the preview
+    if (!snippet.fieldMappings || Object.keys(snippet.fieldMappings).length === 0) {
+      setGhostValues({});
+      return;
+    }
+    
     // Set all field mappings as ghost values for preview
     // Always show ghost text, even if fields have existing values
     const maintenanceFields = ['responsibleParty', 'maintenanceOwnerResponsibility', 'maintenanceReasoning'];
@@ -889,42 +950,38 @@ export default function App() {
             </div>
           </div>
           
-          {/* AI Fill Toggle */}
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-3 border-r border-gray-300 pr-4">
-              <span className="text-sm text-gray-700">AI Fill</span>
-              <button
-                onClick={() => handleToggleAiMode(!aiMode)}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  aiMode ? 'bg-purple-600' : 'bg-gray-300'
-                }`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    aiMode ? 'translate-x-6' : 'translate-x-1'
-                  }`}
-                />
-              </button>
-              <span className={`text-xs font-medium ${aiMode ? 'text-purple-600' : 'text-gray-500'}`}>
-                {aiMode ? 'ON' : 'OFF'}
-              </span>
-            </div>
-
-            {aiMode && (
-              <>
+          {/* AI Fill Toggle - Only show when AI mode is ON */}
+          {aiMode && (
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3 border-r border-gray-300 pr-4 animate-in fade-in slide-in-from-right duration-300">
+                <span className="text-sm text-gray-700">AI Fill</span>
                 <button
-                  onClick={handleClearAll}
-                  className="text-sm text-gray-600 hover:text-gray-900 px-3 py-1.5 hover:bg-gray-100 rounded"
+                  onClick={() => handleToggleAiMode(false)}
+                  className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors bg-blue-600 hover:bg-blue-700"
                 >
-                  Clear All
+                  <span className="inline-block h-4 w-4 transform rounded-full bg-white transition-transform translate-x-6" />
                 </button>
-                <button className="text-sm text-gray-600 hover:text-gray-900 px-3 py-1.5 hover:bg-gray-100 rounded flex items-center gap-1">
-                  <Download className="w-4 h-4" />
-                  Export
-                </button>
-              </>
-            )}
-            
+                <span className="text-xs font-medium text-red-600">ON</span>
+              </div>
+
+              {aiMode && (
+                <>
+                  <button
+                    onClick={handleClearAll}
+                    className="text-sm text-gray-600 hover:text-gray-900 px-3 py-1.5 hover:bg-gray-100 rounded"
+                  >
+                    Clear All
+                  </button>
+                  <button className="text-sm text-gray-600 hover:text-gray-900 px-3 py-1.5 hover:bg-gray-100 rounded flex items-center gap-1">
+                    <Download className="w-4 h-4" />
+                    Export
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+          
+          <div className="flex items-center gap-4">
             <button className="text-gray-600 hover:text-gray-900">
               🔍
             </button>
@@ -1038,6 +1095,7 @@ export default function App() {
                     ghostValues={ghostValues}
                     onAcceptGhost={handleAcceptGhost}
                     onFieldSearch={handleFieldSearch}
+                    onToggleAiMode={handleToggleAiMode}
                   />
                 </div>
               </ResizablePanel>
@@ -1051,6 +1109,7 @@ export default function App() {
             formData={formData}
             onFieldChange={handleFieldChange}
             aiMode={false}
+            onToggleAiMode={handleToggleAiMode}
           />
         </main>
       )}
