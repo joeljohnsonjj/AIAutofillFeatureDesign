@@ -430,7 +430,7 @@ export function SnippetList({
               <span className="text-white font-medium">
                 {searchQuery ? `Results for "${searchQuery}"` : 'AI Auto Fill'}
               </span>
-              <span className="bg-white/20 text-white text-xs px-2 py-1 rounded font-semibold">
+              <span className="bg-white/20 text-red-600 text-xs px-2 py-1 rounded font-semibold">
                 {snippets.length} {snippets.length === 1 ? 'snippet' : 'snippets'} found
               </span>
             </>

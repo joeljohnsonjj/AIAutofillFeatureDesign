@@ -10,6 +10,8 @@ interface AgreementFormProps {
   onAcceptGhost?: (fieldId: string) => void;
   onFieldSearch?: (fieldId: string, value: string) => void;
   onToggleAiMode?: (enabled: boolean) => void;
+  isAnalyzing?: boolean;
+  snippetsCount?: number;
 }
 
 export function AgreementForm({ 
@@ -20,6 +22,8 @@ export function AgreementForm({
   onAcceptGhost,
   onFieldSearch,
   onToggleAiMode,
+  isAnalyzing = false,
+  snippetsCount = 0,
 }: AgreementFormProps) {
   const [isExpanded, setIsExpanded] = useState(true);
 
@@ -71,6 +75,8 @@ export function AgreementForm({
                 onAcceptGhost={onAcceptGhost}
                 onFieldSearch={onFieldSearch}
                 onToggleAiMode={onToggleAiMode}
+                isAnalyzing={isAnalyzing}
+                snippetsCount={snippetsCount}
               />
 
               {/* Billing Section */}

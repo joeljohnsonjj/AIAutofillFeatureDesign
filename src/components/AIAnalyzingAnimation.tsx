@@ -17,15 +17,15 @@ export function AIAnalyzingAnimation({
   };
 
   return (
-    <div className="flex items-center gap-2 text-purple-600 animate-pulse">
+    <div className="flex items-center gap-2 text-red-600 animate-pulse">
       <div className="relative">
         <Sparkles className={`${sizeClasses[size]} animate-spin`} style={{ animationDuration: '2s' }} />
         <Loader2 
-          className={`${sizeClasses[size]} absolute top-0 left-0 animate-spin text-purple-400`} 
+          className={`${sizeClasses[size]} absolute top-0 left-0 animate-spin text-red-400`} 
           style={{ animationDuration: '1s', animationDirection: 'reverse' }}
         />
       </div>
-      <span className="text-sm font-medium">{message}</span>
+      {message && <span className="text-sm font-medium">{message}</span>}
     </div>
   );
 }

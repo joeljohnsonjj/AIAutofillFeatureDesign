@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { AgreementForm } from './components/AgreementForm';
 import { DocumentViewer } from './components/DocumentViewer';
 import { SnippetList } from './components/SnippetList';
@@ -6,7 +7,7 @@ import { AIFillHelp } from './components/AIFillHelp';
 import { DocumentSelector, type Document } from './components/DocumentSelector';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from './components/ui/resizable';
 import { AIAnalyzingAnimation } from './components/AIAnalyzingAnimation';
-import { Search, Download, X } from 'lucide-react';
+import { Search, Download, X, ArrowLeft } from 'lucide-react';
 
 export interface FormField {
   id: string;
@@ -263,6 +264,9 @@ const DOCUMENTS: Document[] = [
 ];
 
 export default function App() {
+  const navigate = useNavigate();
+  const { id } = useParams<{ id: string }>();
+  
   const [formData, setFormData] = useState<Record<string, string>>({
     agreementName: '',
     agreementDate: '',
@@ -901,6 +905,25 @@ export default function App() {
     setGhostValues({});
   };
 
+  const handleBack = () => {
+    if (id) {
+      navigate(`/agreements/${id}`);
+    } else {
+      navigate('/agreements');
+    }
+  };
+
+  const handleSave = () => {
+    // Save logic here
+    console.log('Saving agreement:', formData);
+    // Navigate back to preview or list
+    if (id) {
+      navigate(`/agreements/${id}`);
+    } else {
+      navigate('/agreements');
+    }
+  };
+
   const handleApplySnippet = (snippet: any, keepSnippetsVisible: boolean = false) => {
     // Apply snippet to form fields (including all three fields)
     // Always apply to all three maintenance fields, even if they have existing text
@@ -932,6 +955,11 @@ export default function App() {
     if (!keepSnippetsVisible) {
       setSnippets([]);
       setGlobalSearchQuery('');
+      
+      // Navigate back after applying (with a small delay to show the changes)
+      setTimeout(() => {
+        handleSave();
+      }, 500);
     }
   };
 
@@ -941,6 +969,13 @@ export default function App() {
       <header className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between max-w-full mx-auto">
           <div className="flex items-center gap-3">
+            <button
+              onClick={handleBack}
+              className="flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <ArrowLeft className="w-5 h-5" />
+              <span>Back</span>
+            </button>
             <div className="flex items-center gap-1">
               <span className="text-sm">☰</span>
             </div>
@@ -1014,7 +1049,7 @@ export default function App() {
                   placeholder="Search contracts for evidence... (e.g., 'maintenance responsibility')"
                   value={globalSearchQuery}
                   onChange={(e) => handleGlobalSearch(e.target.value)}
-                  className="w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  className="w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
                 />
                 {globalSearchQuery && (
                   <button
@@ -1029,15 +1064,10 @@ export default function App() {
                     <X className="w-5 h-5" />
                   </button>
                 )}
-                {isAnalyzing && (
-                  <div className="absolute right-12 top-1/2 -translate-y-1/2">
-                    <AIAnalyzingAnimation size="sm" message="" />
-                  </div>
-                )}
                 {globalSearchQuery && !isAnalyzing && (
-                  <div className="absolute top-full left-0 right-0 mt-2 text-sm text-gray-600">
+                  <div className="absolute top-full left-0 right-0 mt-2 text-sm text-red-600">
                     {snippets.length > 0 ? (
-                      <span className="text-purple-600">
+                      <span>
                         Matches: "{globalSearchQuery}" - {snippets.length} snippet{snippets.length !== 1 ? 's' : ''} found
                       </span>
                     ) : globalSearchQuery.length > 2 ? (
@@ -1096,6 +1126,8 @@ export default function App() {
                     onAcceptGhost={handleAcceptGhost}
                     onFieldSearch={handleFieldSearch}
                     onToggleAiMode={handleToggleAiMode}
+                    isAnalyzing={isAnalyzing}
+                    snippetsCount={snippets.length}
                   />
                 </div>
               </ResizablePanel>

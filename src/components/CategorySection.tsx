@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Search, Eye, Check, X } from 'lucide-react';
 import { FormField } from '../App';
 import { GhostFormField } from './GhostFormField';
+import { AIAnalyzingAnimation } from './AIAnalyzingAnimation';
 
 interface CategorySectionProps {
   category: string;
@@ -14,6 +15,8 @@ interface CategorySectionProps {
   onAcceptGhost?: (fieldId: string) => void;
   onFieldSearch?: (fieldId: string, value: string) => void;
   onToggleAiMode?: (enabled: boolean) => void;
+  isAnalyzing?: boolean;
+  snippetsCount?: number;
 }
 
 interface PDFReference {
@@ -151,6 +154,8 @@ export function CategorySection({
   onAcceptGhost,
   onFieldSearch,
   onToggleAiMode,
+  isAnalyzing = false,
+  snippetsCount = 0,
 }: CategorySectionProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [aiResponses, setAiResponses] = useState<AIResponse[]>([]);
@@ -407,19 +412,35 @@ export function CategorySection({
         <div className="mb-4">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-gray-900">{title}</h2>
-            {/* AI Fill Toggle - Only show in maintenance section when AI mode is OFF */}
-            {category === 'maintenance' && !aiMode && onToggleAiMode && (
-              <div className="flex items-center gap-3 animate-in fade-in slide-in-from-right duration-300">
-                <span className="text-sm text-gray-700">AI Fill</span>
-                <button
-                  onClick={() => onToggleAiMode(true)}
-                  className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors bg-gray-300 hover:bg-gray-400"
-                >
-                  <span className="inline-block h-4 w-4 transform rounded-full bg-white transition-transform translate-x-1" />
-                </button>
-                <span className="text-xs font-medium text-gray-500">OFF</span>
-              </div>
-            )}
+            <div className="flex items-center gap-3">
+              {/* AI Analyzing Animation - Show in maintenance section when analyzing */}
+              {category === 'maintenance' && aiMode && isAnalyzing && (
+                <div className="animate-in fade-in slide-in-from-right duration-300">
+                  <AIAnalyzingAnimation size="sm" message="" />
+                </div>
+              )}
+              {/* Snippet Count - Show when not analyzing and snippets are available */}
+              {category === 'maintenance' && aiMode && !isAnalyzing && snippetsCount > 0 && (
+                <div className="animate-in fade-in slide-in-from-right duration-300">
+                  <span className="text-sm font-medium text-red-600">
+                    {snippetsCount} {snippetsCount === 1 ? 'snippet' : 'snippets'} fetched
+                  </span>
+                </div>
+              )}
+              {/* AI Fill Toggle - Only show in maintenance section when AI mode is OFF */}
+              {category === 'maintenance' && !aiMode && onToggleAiMode && (
+                <div className="flex items-center gap-3 animate-in fade-in slide-in-from-right duration-300">
+                  <span className="text-sm text-gray-700">AI Fill</span>
+                  <button
+                    onClick={() => onToggleAiMode(true)}
+                    className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors bg-gray-300 hover:bg-gray-400"
+                  >
+                    <span className="inline-block h-4 w-4 transform rounded-full bg-white transition-transform translate-x-1" />
+                  </button>
+                  <span className="text-xs font-medium text-gray-500">OFF</span>
+                </div>
+              )}
+            </div>
           </div>
           
           {/* AI Search Bar - REMOVED per user request */}
