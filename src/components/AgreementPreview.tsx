@@ -1,9 +1,35 @@
 ﻿import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { ArrowLeft, FileText, Building2, ClipboardList, History, FileCheck, Building, Map } from 'lucide-react';
+import { ArrowLeft, FileText, Building2, FileCheck, File, Trash2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import type { Agreement } from './AgreementsLandingPage';
+import { getAgreementById, deleteAgreement, deleteMockAgreement } from '../utils/agreementStorage';
+import { useState } from 'react';
+
+// Mock documents uploaded during agreement creation
+const AGREEMENT_DOCUMENTS = [
+  { id: 'doc-1', name: 'land-reports-2025-04-21T10_19_42.23YZ.pdf' },
+  { id: 'doc-2', name: 'lease-agreement-2024.pdf' },
+  { id: 'doc-3', name: 'maintenance-contract-2025.pdf' },
+];
+
+// Helper function to get file type icon
+const getFileIcon = (fileName: string) => {
+  const extension = fileName.split('.').pop()?.toLowerCase();
+  switch (extension) {
+    case 'pdf':
+      return <FileText className="w-5 h-5 text-red-600" />;
+    case 'doc':
+    case 'docx':
+      return <FileText className="w-5 h-5 text-blue-600" />;
+    case 'xls':
+    case 'xlsx':
+      return <FileText className="w-5 h-5 text-green-600" />;
+    default:
+      return <File className="w-5 h-5 text-gray-600" />;
+  }
+};
 
 const mockAgreements: Agreement[] = [
   {
@@ -66,8 +92,12 @@ const mockAgreements: Agreement[] = [
 export function AgreementPreview() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   
-  const agreement = mockAgreements.find((a) => a.id === id);
+  // Try to find agreement in mock data first, then in storage
+  const mockAgreement = mockAgreements.find((a) => a.id === id);
+  const storedAgreement = id ? getAgreementById(id) : undefined;
+  const agreement = mockAgreement || storedAgreement;
 
   if (!agreement) {
     return (
@@ -86,60 +116,81 @@ export function AgreementPreview() {
     navigate(`/agreements/${id}/edit`);
   };
 
+  const handleDelete = () => {
+    if (id) {
+      if (storedAgreement) {
+        // Delete stored agreement
+        const success = deleteAgreement(id);
+        if (success) {
+          navigate('/agreements');
+        }
+      } else if (mockAgreement) {
+        // Delete mock agreement (mark as deleted)
+        const success = deleteMockAgreement(id);
+        if (success) {
+          navigate('/agreements');
+        }
+      }
+    }
+    setShowDeleteConfirm(false);
+  };
+
+  const handleDeleteClick = () => {
+    // Show confirmation for all agreements
+    setShowDeleteConfirm(true);
+  };
+
+  const handleCancelDelete = () => {
+    setShowDeleteConfirm(false);
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50 flex">
-      {/* Sidebar */}
-      <div className="w-64 bg-gray-900 text-white flex-shrink-0">
-        <div className="p-6">
-          <h2 className="mb-6">Location Management</h2>
-          <nav className="space-y-2">
-            <button className="w-full flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-left">
-              <Map className="w-5 h-5" />
-              <span>Land</span>
+    <div className="min-h-screen bg-gray-50">
+      {/* Header - Same as other pages */}
+      <header className="bg-white border-b border-gray-200 px-6 py-4">
+        <div className="flex items-center justify-between max-w-full mx-auto">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1">
+              <span className="text-sm">☰</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="text-red-600 font-bold">LOCATION</span>
+              <span className="bg-red-600 text-white px-1.5 py-0.5 text-xs">HQ</span>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-4">
+            <button className="text-gray-600 hover:text-gray-900">
+              🔍
             </button>
-            <button className="w-full flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-left">
-              <Building className="w-5 h-5" />
-              <span>Campus</span>
+            <button className="text-gray-600 hover:text-gray-900">
+              👤
             </button>
-            <button className="w-full flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-left">
-              <Building className="w-5 h-5" />
-              <span>Building</span>
-            </button>
-            <button className="w-full flex items-center gap-3 px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors text-left">
-              <FileText className="w-5 h-5" />
-              <span>Agreements</span>
-            </button>
-          </nav>
+          </div>
         </div>
-      </div>
+      </header>
 
       {/* Main Content */}
-      <div className="flex-1">
-        {/* Header */}
+      <div className="w-full">
+        {/* Content Header */}
         <div className="bg-white border-b border-gray-200">
           <div className="max-w-7xl mx-auto px-6 py-6">
             <div className="flex items-center justify-between mb-6">
               <Button
                 variant="ghost"
                 onClick={() => navigate('/agreements')}
-                className="gap-2 -ml-2"
+                className="gap-2"
               >
                 <ArrowLeft className="w-4 h-4" />
                 Back to Agreements
               </Button>
-              <div className="flex gap-3">
-                <Button variant="outline" className="gap-2">
-                  <FileText className="w-4 h-4" />
-                  Print Preview
-                </Button>
-                <Button
-                  onClick={handleEdit}
-                  className="bg-blue-600 hover:bg-blue-700 text-white gap-2"
-                >
-                  <FileCheck className="w-4 h-4" />
-                  Edit Agreement
-                </Button>
-              </div>
+              <Button
+                onClick={handleEdit}
+                className="bg-blue-600 hover:bg-blue-700 text-white gap-2"
+              >
+                <FileCheck className="w-4 h-4" />
+                Edit Agreement
+              </Button>
             </div>
 
             <motion.div
@@ -158,11 +209,6 @@ export function AgreementPreview() {
                   <span className="font-medium text-gray-900">Name:</span>
                   <span>{agreement.name}</span>
                 </div>
-                <span className="text-gray-400">•</span>
-                <div className="flex items-center gap-2">
-                  <span className="font-medium text-gray-900">Location:</span>
-                  <span>{agreement.location}</span>
-                </div>
               </div>
             </motion.div>
           </div>
@@ -179,26 +225,6 @@ export function AgreementPreview() {
               <TabsTrigger value="documents" className="gap-2 whitespace-nowrap">
                 <Building2 className="w-4 h-4" />
                 Documents
-              </TabsTrigger>
-              <TabsTrigger value="campuses" className="gap-2 whitespace-nowrap">
-                <ClipboardList className="w-4 h-4" />
-                Campuses
-              </TabsTrigger>
-              <TabsTrigger value="hierarchy" className="gap-2 whitespace-nowrap">
-                <Building2 className="w-4 h-4" />
-                Hierarchy
-              </TabsTrigger>
-              <TabsTrigger value="parcels" className="gap-2 whitespace-nowrap">
-                <ClipboardList className="w-4 h-4" />
-                Parcels
-              </TabsTrigger>
-              <TabsTrigger value="agreements" className="gap-2 whitespace-nowrap">
-                <FileCheck className="w-4 h-4" />
-                Agreements
-              </TabsTrigger>
-              <TabsTrigger value="history" className="gap-2 whitespace-nowrap">
-                <History className="w-4 h-4" />
-                History
               </TabsTrigger>
             </TabsList>
 
@@ -270,42 +296,65 @@ export function AgreementPreview() {
 
             <TabsContent value="documents">
               <div className="bg-white border border-gray-200 rounded-lg p-6">
-                <p className="text-gray-600 text-center py-8">No documents attached to this agreement.</p>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="campuses">
-              <div className="bg-white border border-gray-200 rounded-lg p-6">
-                <p className="text-gray-600 text-center py-8">No campuses linked to this agreement.</p>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="hierarchy">
-              <div className="bg-white border border-gray-200 rounded-lg p-6">
-                <p className="text-gray-600 text-center py-8">No hierarchy information available.</p>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="parcels">
-              <div className="bg-white border border-gray-200 rounded-lg p-6">
-                <p className="text-gray-600 text-center py-8">No parcels linked to this agreement.</p>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="agreements">
-              <div className="bg-white border border-gray-200 rounded-lg p-6">
-                <p className="text-gray-600 text-center py-8">No related agreements.</p>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="history">
-              <div className="bg-white border border-gray-200 rounded-lg p-6">
-                <p className="text-gray-600 text-center py-8">No history available.</p>
+                {AGREEMENT_DOCUMENTS.length > 0 ? (
+                  <div className="space-y-3">
+                    {AGREEMENT_DOCUMENTS.map((doc) => (
+                      <div
+                        key={doc.id}
+                        className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                      >
+                        {getFileIcon(doc.name)}
+                        <span className="text-gray-900 font-medium">{doc.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-gray-600 text-center py-8">No documents attached to this agreement.</p>
+                )}
               </div>
             </TabsContent>
           </Tabs>
+
+          {/* Delete Button - At the bottom */}
+          <div className="mt-16 pb-8 border-t-2 border-gray-300 pt-10" style={{paddingTop:24}}>
+            <Button
+              onClick={handleDeleteClick}
+              variant="outline"
+              className="text-red-600 border-red-300 hover:bg-red-50 hover:border-red-400 gap-2"
+            >
+              <Trash2 className="w-4 h-4" />
+              Delete Agreement
+            </Button>
+          </div>
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Confirm Deletion</h3>
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to delete this agreement? This action cannot be undone.
+            </p>
+            <div className="flex items-center justify-end gap-3">
+              <Button
+                onClick={handleCancelDelete}
+                variant="outline"
+                className="px-4 py-2"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleDelete}
+                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2"
+              >
+                Delete
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

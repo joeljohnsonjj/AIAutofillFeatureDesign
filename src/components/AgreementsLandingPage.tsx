@@ -1,9 +1,10 @@
-﻿import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Search, Filter, ArrowUpDown, FileText, Building, Map } from 'lucide-react';
+﻿import { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { Search } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
+import { getAgreements, getDeletedMockAgreements } from '../utils/agreementStorage';
 
 export interface Agreement {
   id: string;
@@ -80,16 +81,44 @@ const mockAgreements: Agreement[] = [
 
 export function AgreementsLandingPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchTerm, setSearchTerm] = useState('');
-  const [filteredAgreements, setFilteredAgreements] = useState(mockAgreements);
+  const [allAgreements, setAllAgreements] = useState<Agreement[]>([]);
+  const [filteredAgreements, setFilteredAgreements] = useState<Agreement[]>([]);
+
+  // Load agreements from storage and merge with mock data
+  // Refresh whenever location changes (when navigating back from form)
+  useEffect(() => {
+    const storedAgreements = getAgreements();
+    const deletedMockIds = new Set(getDeletedMockAgreements());
+    // Filter out deleted mock agreements
+    const activeMockAgreements = mockAgreements.filter(a => !deletedMockIds.has(a.id));
+    // Merge mock agreements with stored agreements, avoiding duplicates by ID
+    const mockIds = new Set(activeMockAgreements.map(a => a.id));
+    const uniqueStored = storedAgreements.filter(a => !mockIds.has(a.id));
+    const merged = [...activeMockAgreements, ...uniqueStored];
+    setAllAgreements(merged);
+    
+    // Apply current search filter if any
+    if (searchTerm) {
+      const filtered = merged.filter(
+        (agreement) =>
+          agreement.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          agreement.agreementNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          agreement.status.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+      setFilteredAgreements(filtered);
+    } else {
+      setFilteredAgreements(merged);
+    }
+  }, [location.pathname, searchTerm]);
 
   const handleSearch = (value: string) => {
     setSearchTerm(value);
-    const filtered = mockAgreements.filter(
-      (agreement) =>
+    const filtered = allAgreements.filter(
+      (agreement: Agreement) =>
         agreement.name.toLowerCase().includes(value.toLowerCase()) ||
         agreement.agreementNumber.toLowerCase().includes(value.toLowerCase()) ||
-        agreement.location.toLowerCase().includes(value.toLowerCase()) ||
         agreement.status.toLowerCase().includes(value.toLowerCase())
     );
     setFilteredAgreements(filtered);
@@ -104,35 +133,34 @@ export function AgreementsLandingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
-      {/* Sidebar */}
-      <div className="w-64 bg-gray-900 text-white flex-shrink-0">
-        <div className="p-6">
-          <h2 className="mb-6">Location Management</h2>
-          <nav className="space-y-2">
-            <button className="w-full flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-left">
-              <Map className="w-5 h-5" />
-              <span>Land</span>
+    <div className="min-h-screen bg-gray-50">
+      {/* Header - Same as agreement form page */}
+      <header className="bg-white border-b border-gray-200 px-6 py-4">
+        <div className="flex items-center justify-between max-w-full mx-auto">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1">
+              <span className="text-sm">☰</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="text-red-600 font-bold">LOCATION</span>
+              <span className="bg-red-600 text-white px-1.5 py-0.5 text-xs">HQ</span>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-4">
+            <button className="text-gray-600 hover:text-gray-900">
+              🔍
             </button>
-            <button className="w-full flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-left">
-              <Building className="w-5 h-5" />
-              <span>Campus</span>
+            <button className="text-gray-600 hover:text-gray-900">
+              👤
             </button>
-            <button className="w-full flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors text-left">
-              <Building className="w-5 h-5" />
-              <span>Building</span>
-            </button>
-            <button className="w-full flex items-center gap-3 px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors text-left">
-              <FileText className="w-5 h-5" />
-              <span>Agreements</span>
-            </button>
-          </nav>
+          </div>
         </div>
-      </div>
+      </header>
 
       {/* Main Content */}
-      <div className="flex-1">
-        {/* Header */}
+      <div className="w-full">
+        {/* Content Header */}
         <div className="bg-white border-b border-gray-200">
           <div className="max-w-7xl mx-auto px-6 py-8">
             <div className="flex items-start justify-between mb-6">
@@ -173,16 +201,6 @@ export function AgreementsLandingPage() {
         <div className="max-w-7xl mx-auto px-6 py-6">
           <div className="flex items-center justify-between mb-6">
             <p className="text-gray-600">{filteredAgreements.length} Agreement results</p>
-            <div className="flex gap-3">
-              <Button variant="outline" className="gap-2">
-                <Filter className="w-4 h-4" />
-                Filter
-              </Button>
-              <Button variant="outline" className="gap-2">
-                <ArrowUpDown className="w-4 h-4" />
-                Sort by
-              </Button>
-            </div>
           </div>
 
           {/* Agreement Cards */}
@@ -203,16 +221,16 @@ export function AgreementsLandingPage() {
                       <span className="text-gray-800 font-medium">{agreement.name}</span>
                     </div>
                     <div className="flex items-center gap-4 text-gray-600 mb-3 flex-wrap">
-                      <span className="text-sm">{agreement.location}</span>
-                      <span className="text-gray-400">•</span>
                       <span className="text-sm">{agreement.date}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <span
                         className={`px-3 py-1 rounded-full text-sm font-medium ${
-                          agreement.status === 'Active'
+                          agreement.status === 'Active' || agreement.status === 'Accepted'
                             ? 'bg-green-100 text-green-800'
-                            : 'bg-yellow-100 text-yellow-800'
+                            : agreement.status === 'Pending'
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : 'bg-gray-100 text-gray-800'
                         }`}
                       >
                         {agreement.status}

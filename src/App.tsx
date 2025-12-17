@@ -8,6 +8,8 @@ import { DocumentSelector, type Document } from './components/DocumentSelector';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from './components/ui/resizable';
 import { AIAnalyzingAnimation } from './components/AIAnalyzingAnimation';
 import { Search, Download, X, ArrowLeft } from 'lucide-react';
+import { saveAgreement, getAgreementById, updateAgreement } from './utils/agreementStorage';
+import type { Agreement } from './components/AgreementsLandingPage';
 
 export interface FormField {
   id: string;
@@ -263,6 +265,65 @@ const DOCUMENTS: Document[] = [
   },
 ];
 
+// Mock agreements for reference (same as in AgreementPreview)
+const mockAgreements: Agreement[] = [
+  {
+    id: '1',
+    agreementNumber: 'AGR001234',
+    name: 'Facilities Management Agreement',
+    date: '01/15/2024',
+    location: 'Building A - Corporate Office',
+    status: 'Active',
+    notes: 'Annual facilities maintenance and upkeep agreement for corporate office building.',
+    maintenance: {
+      responsibleParty: 'Facilities Corp',
+      ownerResponsibility: 'Property oversight and compliance',
+      reasoning: 'Specialized equipment requires certified maintenance',
+    },
+  },
+  {
+    id: '2',
+    agreementNumber: 'AGR001235',
+    name: 'HVAC Service Contract',
+    date: '02/20/2024',
+    location: 'Zone 5 - Industrial Complex',
+    status: 'Active',
+    notes: 'Quarterly HVAC maintenance and emergency repair services.',
+  },
+  {
+    id: '3',
+    agreementNumber: 'AGR001236',
+    name: 'Landscaping Services Agreement',
+    date: '03/10/2024',
+    location: 'Campus East - Research Facility',
+    status: 'Active',
+    notes: 'Weekly landscaping and grounds maintenance for research campus.',
+    maintenance: {
+      responsibleParty: 'GreenScape LLC',
+      ownerResponsibility: 'Environmental compliance',
+      reasoning: 'Maintains professional appearance and environmental standards',
+    },
+  },
+  {
+    id: '4',
+    agreementNumber: 'AGR001237',
+    name: 'Security Monitoring Agreement',
+    date: '12/05/2023',
+    location: 'All Locations',
+    status: 'Active',
+    notes: '24/7 security monitoring and response services across all properties.',
+  },
+  {
+    id: '5',
+    agreementNumber: 'AGR001238',
+    name: 'Waste Management Contract',
+    date: '04/18/2024',
+    location: 'Building C - Distribution Center',
+    status: 'Pending',
+    notes: 'Bi-weekly waste collection and recycling services.',
+  },
+];
+
 export default function App() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
@@ -285,6 +346,10 @@ export default function App() {
   const [ghostValues, setGhostValues] = useState<Record<string, string>>({});
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   
+  // AI approval workflow state
+  const [isAIApproved, setIsAIApproved] = useState(false);
+  const [aiApprovedFormData, setAiApprovedFormData] = useState<Record<string, string>>({});
+  
   // Use ref to store latest formData for field search (ensures we always have current values)
   const formDataRef = useRef(formData);
   
@@ -294,6 +359,76 @@ export default function App() {
   // Document management
   const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
   const [lastViewedDocumentId, setLastViewedDocumentId] = useState<string | null>(null);
+  
+  // Track if we're editing an existing agreement
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingAgreement, setEditingAgreement] = useState<Agreement | null>(null);
+  
+  // Load agreement data when editing
+  useEffect(() => {
+    if (id) {
+      // Try to load from storage first (in case mock agreement was already saved)
+      const storedAgreement = getAgreementById(id);
+      if (storedAgreement) {
+        setIsEditing(true);
+        setEditingAgreement(storedAgreement);
+        // Prefill form with stored agreement data
+        setFormData({
+          agreementName: storedAgreement.name || '',
+          agreementDate: storedAgreement.date || '',
+          notes: storedAgreement.notes || '',
+          responsibleParty: storedAgreement.maintenance?.responsibleParty || '',
+          maintenanceOwnerResponsibility: storedAgreement.maintenance?.ownerResponsibility || '',
+          maintenanceReasoning: storedAgreement.maintenance?.reasoning || '',
+          billingContact: '',
+          billingAgreement: '',
+        });
+      } else {
+        // Check if it's a mock agreement
+        const mockAgreement = mockAgreements.find(a => a.id === id);
+        if (mockAgreement) {
+          setIsEditing(true);
+          setEditingAgreement(mockAgreement);
+          // Prefill form with mock agreement data
+          setFormData({
+            agreementName: mockAgreement.name || '',
+            agreementDate: mockAgreement.date || '',
+            notes: mockAgreement.notes || '',
+            responsibleParty: mockAgreement.maintenance?.responsibleParty || '',
+            maintenanceOwnerResponsibility: mockAgreement.maintenance?.ownerResponsibility || '',
+            maintenanceReasoning: mockAgreement.maintenance?.reasoning || '',
+            billingContact: '',
+            billingAgreement: '',
+          });
+        }
+      }
+    } else {
+      // New agreement - reset form
+      setIsEditing(false);
+      setEditingAgreement(null);
+      setFormData({
+        agreementName: '',
+        agreementDate: '',
+        notes: '',
+        responsibleParty: '',
+        maintenanceOwnerResponsibility: '',
+        maintenanceReasoning: '',
+        billingContact: '',
+        billingAgreement: '',
+      });
+    }
+  }, [id]);
+  
+  // Check if there are AI changes that need approval
+  // AI changes exist when:
+  // 1. AI mode is ON
+  // 2. There are ghost values (AI suggestions) OR form data has been modified after approval
+  // Note: When AI mode is first turned on and snippets are auto-applied, those are direct form changes
+  // and will require approval if the user makes further changes after approval
+  const hasAIChanges = aiMode && (
+    Object.keys(ghostValues).length > 0 || 
+    (isAIApproved && JSON.stringify(formData) !== JSON.stringify(aiApprovedFormData))
+  );
   
   // Keep formDataRef in sync with formData
   useEffect(() => {
@@ -332,6 +467,12 @@ export default function App() {
       };
       // Update ref immediately to ensure latest values are available for search
       formDataRef.current = newFormData;
+      
+      // If AI was approved and form data changes, reset approval status
+      if (isAIApproved && aiMode) {
+        setIsAIApproved(false);
+      }
+      
       return newFormData;
     });
     
@@ -686,7 +827,7 @@ export default function App() {
       }
     }
 
-    // When toggling OFF AI mode, convert all ghost values to actual values
+    // When toggling OFF AI mode, convert all ghost values to actual values and reset approval state
     if (!newMode && aiMode) {
       setFormData(prev => {
         const updated = { ...prev };
@@ -699,6 +840,9 @@ export default function App() {
         return updated;
       });
       setGhostValues({});
+      // Reset AI approval state when turning off AI mode
+      setIsAIApproved(false);
+      setAiApprovedFormData({});
     }
     setAiMode(newMode);
     
@@ -924,6 +1068,130 @@ export default function App() {
     }
   };
 
+  const handleSaveDraft = () => {
+    // Save as draft - no validation, set status to Pending
+    const agreementData = {
+      name: formData.agreementName || 'Untitled Agreement',
+      date: formData.agreementDate || new Date().toLocaleDateString('en-US'),
+      location: editingAgreement?.location || 'Not specified',
+      notes: formData.notes,
+      maintenance: formData.responsibleParty || formData.maintenanceOwnerResponsibility || formData.maintenanceReasoning
+        ? {
+            responsibleParty: formData.responsibleParty || '',
+            ownerResponsibility: formData.maintenanceOwnerResponsibility || '',
+            reasoning: formData.maintenanceReasoning || '',
+          }
+        : undefined,
+    };
+
+    if (isEditing && editingAgreement) {
+      // Check if agreement exists in storage
+      const existingInStorage = getAgreementById(editingAgreement.id);
+      
+      if (existingInStorage) {
+        // Update existing stored agreement
+        const updated = updateAgreement(editingAgreement.id, {
+          ...agreementData,
+          status: 'Pending',
+        });
+        if (updated) {
+          console.log('Updated agreement as draft:', updated);
+          navigate(`/agreements/${editingAgreement.id}`);
+        } else {
+          console.error('Failed to update agreement');
+        }
+      } else {
+        // Mock agreement - save to storage preserving original ID and agreement number
+        const savedAgreement = saveAgreement(
+          agreementData,
+          'Pending',
+          editingAgreement.id,
+          editingAgreement.agreementNumber
+        );
+        console.log('Saved mock agreement as draft (preserving ID):', savedAgreement);
+        navigate(`/agreements/${editingAgreement.id}`);
+      }
+    } else {
+      // Create new agreement
+      const savedAgreement = saveAgreement(agreementData, 'Pending');
+      console.log('Saved agreement as draft:', savedAgreement);
+      navigate('/agreements');
+    }
+  };
+
+  const handleFinish = () => {
+    // Finish button - only enabled when AI is approved (if AI mode is ON) or when AI mode is OFF
+    if (aiMode && !isAIApproved) {
+      // Should not be called if button is disabled, but add safety check
+      return;
+    }
+    
+    const agreementData = {
+      name: formData.agreementName || 'Untitled Agreement',
+      date: formData.agreementDate || new Date().toLocaleDateString('en-US'),
+      location: editingAgreement?.location || 'Not specified',
+      notes: formData.notes,
+      maintenance: formData.responsibleParty || formData.maintenanceOwnerResponsibility || formData.maintenanceReasoning
+        ? {
+            responsibleParty: formData.responsibleParty || '',
+            ownerResponsibility: formData.maintenanceOwnerResponsibility || '',
+            reasoning: formData.maintenanceReasoning || '',
+          }
+        : undefined,
+    };
+
+    if (isEditing && editingAgreement) {
+      // Check if agreement exists in storage
+      const existingInStorage = getAgreementById(editingAgreement.id);
+      
+      if (existingInStorage) {
+        // Update existing stored agreement
+        const updated = updateAgreement(editingAgreement.id, {
+          ...agreementData,
+          status: 'Accepted',
+        });
+        if (updated) {
+          console.log('Updated agreement as accepted:', updated);
+          navigate(`/agreements/${editingAgreement.id}`);
+        } else {
+          console.error('Failed to update agreement');
+        }
+      } else {
+        // Mock agreement - save to storage preserving original ID and agreement number
+        const savedAgreement = saveAgreement(
+          agreementData,
+          'Accepted',
+          editingAgreement.id,
+          editingAgreement.agreementNumber
+        );
+        console.log('Saved mock agreement as accepted (preserving ID):', savedAgreement);
+        navigate(`/agreements/${editingAgreement.id}`);
+      }
+    } else {
+      // Create new agreement
+      const savedAgreement = saveAgreement(agreementData, 'Accepted');
+      console.log('Saved agreement as accepted:', savedAgreement);
+      navigate('/agreements');
+    }
+  };
+
+  const handleApproveAIChanges = () => {
+    // Approve AI changes - convert ghost values to actual values and mark as approved
+    const approvedData = { ...formData };
+    
+    // Accept all ghost values
+    Object.entries(ghostValues).forEach(([fieldId, ghostValue]) => {
+      if (!approvedData[fieldId] || approvedData[fieldId].trim().length === 0) {
+        approvedData[fieldId] = ghostValue;
+      }
+    });
+    
+    setFormData(approvedData);
+    setGhostValues({});
+    setIsAIApproved(true);
+    setAiApprovedFormData({ ...approvedData }); // Store snapshot for comparison
+  };
+
   const handleApplySnippet = (snippet: any, keepSnippetsVisible: boolean = false) => {
     // Apply snippet to form fields (including all three fields)
     // Always apply to all three maintenance fields, even if they have existing text
@@ -969,13 +1237,6 @@ export default function App() {
       <header className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between max-w-full mx-auto">
           <div className="flex items-center gap-3">
-            <button
-              onClick={handleBack}
-              className="flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5" />
-              <span>Back</span>
-            </button>
             <div className="flex items-center gap-1">
               <span className="text-sm">☰</span>
             </div>
@@ -1026,6 +1287,19 @@ export default function App() {
           </div>
         </div>
       </header>
+
+      {/* Back Button - Below Header */}
+      <div className="bg-white border-b border-gray-200 px-6 py-3">
+        <div className="max-w-full mx-auto">
+          <button
+            onClick={handleBack}
+            className="flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            <span>Back</span>
+          </button>
+        </div>
+      </div>
 
       {aiMode ? (
         <>
@@ -1128,6 +1402,13 @@ export default function App() {
                     onToggleAiMode={handleToggleAiMode}
                     isAnalyzing={isAnalyzing}
                     snippetsCount={snippets.length}
+                    onSaveDraft={handleSaveDraft}
+                    onFinish={handleFinish}
+                    onApproveAIChanges={handleApproveAIChanges}
+                    isAIApproved={isAIApproved}
+                    hasAIChanges={hasAIChanges}
+                    isEditing={isEditing}
+                    onCancel={handleBack}
                   />
                 </div>
               </ResizablePanel>
@@ -1142,6 +1423,10 @@ export default function App() {
             onFieldChange={handleFieldChange}
             aiMode={false}
             onToggleAiMode={handleToggleAiMode}
+            onSaveDraft={handleSaveDraft}
+            onFinish={handleFinish}
+            isEditing={isEditing}
+            onCancel={handleBack}
           />
         </main>
       )}

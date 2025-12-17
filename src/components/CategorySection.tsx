@@ -17,6 +17,7 @@ interface CategorySectionProps {
   onToggleAiMode?: (enabled: boolean) => void;
   isAnalyzing?: boolean;
   snippetsCount?: number;
+  isAIApproved?: boolean;
 }
 
 interface PDFReference {
@@ -156,6 +157,7 @@ export function CategorySection({
   onToggleAiMode,
   isAnalyzing = false,
   snippetsCount = 0,
+  isAIApproved = false,
 }: CategorySectionProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [aiResponses, setAiResponses] = useState<AIResponse[]>([]);
@@ -260,6 +262,7 @@ export function CategorySection({
             page: 12,
             snippet: ghostValue?.substring(0, 50) + '...'
           } : undefined}
+          isAIApproved={isAIApproved}
         />
       );
     }
@@ -411,7 +414,7 @@ export function CategorySection({
         {/* Category Header */}
         <div className="mb-4">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-gray-900">{title}</h2>
+            <h2 className="text-gray-900 font-bold text-xl">{title}</h2>
             <div className="flex items-center gap-3">
               {/* AI Analyzing Animation - Show in maintenance section when analyzing */}
               {category === 'maintenance' && aiMode && isAnalyzing && (
