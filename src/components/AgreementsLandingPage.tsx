@@ -1,6 +1,6 @@
 ﻿import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Search } from 'lucide-react';
+import { Search, ChevronDown } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
@@ -19,6 +19,8 @@ export interface Agreement {
     ownerResponsibility: string;
     reasoning: string;
   };
+  documents?: string[]; // Array of document IDs
+  lastModified?: string; // ISO timestamp of last modification
 }
 
 const mockAgreements: Agreement[] = [
@@ -85,6 +87,34 @@ export function AgreementsLandingPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [allAgreements, setAllAgreements] = useState<Agreement[]>([]);
   const [filteredAgreements, setFilteredAgreements] = useState<Agreement[]>([]);
+  const [sortBy, setSortBy] = useState<'name' | 'modified' | 'id'>('modified');
+  const [showSortDropdown, setShowSortDropdown] = useState(false);
+
+  // Sort agreements based on current sort option
+  const sortAgreements = (agreements: Agreement[]): Agreement[] => {
+    const sorted = [...agreements];
+    switch (sortBy) {
+      case 'name':
+        sorted.sort((a, b) => a.name.localeCompare(b.name));
+        break;
+      case 'modified':
+        // Sort by lastModified (most recent first), fallback to date if lastModified not available
+        sorted.sort((a, b) => {
+          const timeA = a.lastModified 
+            ? new Date(a.lastModified).getTime() 
+            : new Date(a.date).getTime();
+          const timeB = b.lastModified 
+            ? new Date(b.lastModified).getTime() 
+            : new Date(b.date).getTime();
+          return timeB - timeA; // Most recent first
+        });
+        break;
+      case 'id':
+        sorted.sort((a, b) => a.agreementNumber.localeCompare(b.agreementNumber));
+        break;
+    }
+    return sorted;
+  };
 
   // Load agreements from storage and merge with mock data
   // Refresh whenever location changes (when navigating back from form)
@@ -99,9 +129,12 @@ export function AgreementsLandingPage() {
     const merged = [...activeMockAgreements, ...uniqueStored];
     setAllAgreements(merged);
     
+    // Apply sorting
+    const sorted = sortAgreements(merged);
+    
     // Apply current search filter if any
     if (searchTerm) {
-      const filtered = merged.filter(
+      const filtered = sorted.filter(
         (agreement) =>
           agreement.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
           agreement.agreementNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -109,19 +142,36 @@ export function AgreementsLandingPage() {
       );
       setFilteredAgreements(filtered);
     } else {
-      setFilteredAgreements(merged);
+      setFilteredAgreements(sorted);
     }
-  }, [location.pathname, searchTerm]);
+  }, [location.pathname, searchTerm, sortBy]);
 
   const handleSearch = (value: string) => {
     setSearchTerm(value);
-    const filtered = allAgreements.filter(
+    const sorted = sortAgreements(allAgreements);
+    const filtered = sorted.filter(
       (agreement: Agreement) =>
         agreement.name.toLowerCase().includes(value.toLowerCase()) ||
         agreement.agreementNumber.toLowerCase().includes(value.toLowerCase()) ||
         agreement.status.toLowerCase().includes(value.toLowerCase())
     );
     setFilteredAgreements(filtered);
+  };
+
+  const handleSortChange = (option: 'name' | 'modified' | 'id') => {
+    setSortBy(option);
+    setShowSortDropdown(false);
+  };
+
+  const getSortLabel = () => {
+    switch (sortBy) {
+      case 'name':
+        return 'Agreement Name';
+      case 'modified':
+        return 'Last Modified';
+      case 'id':
+        return 'Agreement ID';
+    }
   };
 
   const handleViewAgreement = (agreementId: string) => {
@@ -183,16 +233,72 @@ export function AgreementsLandingPage() {
               </div>
             </div>
 
-            {/* Search Bar */}
-            <div className="relative max-w-2xl">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
-              <Input
-                type="text"
-                placeholder="Search"
-                value={searchTerm}
-                onChange={(e) => handleSearch(e.target.value)}
-                className="pl-12 h-12 border-gray-300 rounded-lg"
-              />
+            {/* Search Bar and Sort Dropdown - Side by Side */}
+            <div className="flex items-center gap-4">
+              {/* Search Bar */}
+              <div className="relative flex-1 max-w-2xl">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+                <Input
+                  type="text"
+                  placeholder="Search"
+                  value={searchTerm}
+                  onChange={(e) => handleSearch(e.target.value)}
+                  className="pl-12 h-12 border-gray-300 rounded-lg"
+                />
+              </div>
+              
+              {/* Sort By Dropdown - Right side */}
+              <div className="relative flex-shrink-0">
+                <button
+                  onClick={() => setShowSortDropdown(!showSortDropdown)}
+                  className="flex items-center gap-2 px-4 py-2.5 h-12 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm font-medium text-gray-700 bg-white"
+                >
+                  <span>Sort by: {getSortLabel()}</span>
+                  <ChevronDown className="w-4 h-4" />
+                </button>
+                
+                {showSortDropdown && (
+                  <>
+                    {/* Backdrop */}
+                    <div 
+                      className="fixed inset-0 z-10" 
+                      onClick={() => setShowSortDropdown(false)}
+                    />
+                    {/* Dropdown Menu */}
+                    <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-lg z-20">
+                      <div className="py-1">
+                        <button
+                          onClick={() => handleSortChange('modified')}
+                          className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center justify-between ${
+                            sortBy === 'modified' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'
+                          }`}
+                        >
+                          <span>Last Modified</span>
+                          {sortBy === 'modified' && <span className="text-blue-600">✓</span>}
+                        </button>
+                        <button
+                          onClick={() => handleSortChange('name')}
+                          className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center justify-between ${
+                            sortBy === 'name' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'
+                          }`}
+                        >
+                          <span>Agreement Name</span>
+                          {sortBy === 'name' && <span className="text-blue-600">✓</span>}
+                        </button>
+                        <button
+                          onClick={() => handleSortChange('id')}
+                          className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center justify-between ${
+                            sortBy === 'id' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'
+                          }`}
+                        >
+                          <span>Agreement ID</span>
+                          {sortBy === 'id' && <span className="text-blue-600">✓</span>}
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -226,7 +332,7 @@ export function AgreementsLandingPage() {
                     <div className="flex items-center gap-2">
                       <span
                         className={`px-3 py-1 rounded-full text-sm font-medium ${
-                          agreement.status === 'Active' || agreement.status === 'Accepted'
+                          agreement.status === 'Active'
                             ? 'bg-green-100 text-green-800'
                             : agreement.status === 'Pending'
                             ? 'bg-yellow-100 text-yellow-800'

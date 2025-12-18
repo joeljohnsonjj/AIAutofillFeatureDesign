@@ -64,7 +64,12 @@ export const saveAgreement = (agreementData: Omit<Agreement, 'id' | 'agreementNu
     status: status,
     notes: agreementData.notes,
     maintenance: agreementData.maintenance,
+    documents: agreementData.documents || [], // Include documents field (default to empty array if not provided)
+    lastModified: new Date().toISOString(), // Track modification time
   };
+  
+  console.log('💾 Saving agreement to storage:', newAgreement);
+  console.log('💾 Documents in saved agreement:', newAgreement.documents);
 
   // Check if agreement with this ID already exists (for mock agreements being saved)
   const existingIndex = agreements.findIndex(a => a.id === newAgreement.id);
@@ -100,7 +105,11 @@ export const updateAgreement = (id: string, updates: Partial<Agreement>): Agreem
     return null;
   }
 
-  agreements[index] = { ...agreements[index], ...updates };
+  agreements[index] = { 
+    ...agreements[index], 
+    ...updates,
+    lastModified: new Date().toISOString(), // Update modification time
+  };
   
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(agreements));

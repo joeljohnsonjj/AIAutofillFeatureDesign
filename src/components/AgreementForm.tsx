@@ -1,5 +1,9 @@
-import React from 'react';
 import { CategorySection } from './CategorySection';
+
+interface Document {
+  id: string;
+  name: string;
+}
 
 interface AgreementFormProps {
   formData: Record<string, string>;
@@ -18,6 +22,10 @@ interface AgreementFormProps {
   hasAIChanges?: boolean;
   isEditing?: boolean;
   onCancel?: () => void;
+  documents?: Document[];
+  checkedDocuments?: string[];
+  onDocumentCheckChange?: (documentId: string, checked: boolean) => void;
+  hasAIGeneratedFields?: Record<string, boolean>;
 }
 
 export function AgreementForm({ 
@@ -37,11 +45,15 @@ export function AgreementForm({
   hasAIChanges = false,
   isEditing = false,
   onCancel,
+  documents = [],
+  checkedDocuments = [],
+  onDocumentCheckChange,
+  hasAIGeneratedFields = {},
 }: AgreementFormProps) {
   // Determine if Finish button should be enabled
-  // When AI mode is ON: Finish is disabled until AI changes are approved
-  // When AI mode is OFF: Finish behaves normally
-  const isFinishEnabled = aiMode ? isAIApproved : true;
+  // When there are AI-generated fields: Finish is disabled until AI changes are approved
+  // When no AI fields: Finish behaves normally
+  const isFinishEnabled = hasAIChanges ? isAIApproved : true;
 
   return (
     <div className="bg-white rounded-lg shadow-sm">
@@ -62,6 +74,7 @@ export function AgreementForm({
           formData={formData}
           onFieldChange={onFieldChange}
           isAIApproved={isAIApproved}
+          hasAIGeneratedFields={hasAIGeneratedFields}
         />
 
         {/* Maintenance Section */}
@@ -83,8 +96,44 @@ export function AgreementForm({
           isAnalyzing={isAnalyzing}
           snippetsCount={snippetsCount}
           isAIApproved={isAIApproved}
+          hasAIGeneratedFields={hasAIGeneratedFields}
         />
       </div>
+
+      {/* Documents List with Checkboxes - Always visible when documents exist */}
+      {documents.length > 0 && (
+        <div className="border-t border-gray-200 px-6 py-4">
+          <h3 className="text-sm font-semibold text-gray-700 mb-3">
+            Uploaded Documents {aiMode && <span className="text-xs text-gray-500 font-normal">(Select documents to filter AI snippets)</span>}
+          </h3>
+          <div className="flex flex-wrap gap-3">
+            {documents.map((doc) => (
+              <label
+                key={doc.id}
+                className={`flex items-center gap-2 px-3 py-2 border rounded-lg cursor-pointer transition-colors ${
+                  checkedDocuments.includes(doc.id)
+                    ? 'border-blue-500 bg-blue-50'
+                    : 'border-gray-300 hover:bg-gray-50'
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={checkedDocuments.includes(doc.id)}
+                  onChange={(e) => {
+                    if (onDocumentCheckChange) {
+                      onDocumentCheckChange(doc.id, e.target.checked);
+                    }
+                  }}
+                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-700 truncate max-w-[200px]" title={doc.name}>
+                  {doc.name}
+                </span>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Footer Buttons */}
       <div className="border-t border-gray-200 px-6 py-4 flex items-center justify-between">
@@ -103,8 +152,8 @@ export function AgreementForm({
               Save as Draft
             </button>
           )}
-          {/* AI Approval Button - Only show when AI mode is ON and there are AI changes that need approval */}
-          {aiMode && hasAIChanges && !isAIApproved && onApproveAIChanges && (
+          {/* AI Approval Button - Always show when there are AI-generated fields that need approval */}
+          {hasAIChanges && !isAIApproved && onApproveAIChanges && (
             <button
               onClick={onApproveAIChanges}
               className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"

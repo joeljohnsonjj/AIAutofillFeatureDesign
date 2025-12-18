@@ -427,7 +427,7 @@ export function SnippetList({
             <AIAnalyzingAnimation message="Analyzing documents..." size="sm" />
           ) : (
             <>
-              <span className="text-white font-medium">
+              <span className="text-black font-medium">
                 {searchQuery ? `Results for "${searchQuery}"` : 'AI Auto Fill'}
               </span>
               <span className="bg-white/20 text-red-600 text-xs px-2 py-1 rounded font-semibold">

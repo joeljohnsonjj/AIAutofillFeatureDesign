@@ -7,8 +7,8 @@ import type { Agreement } from './AgreementsLandingPage';
 import { getAgreementById, deleteAgreement, deleteMockAgreement } from '../utils/agreementStorage';
 import { useState } from 'react';
 
-// Mock documents uploaded during agreement creation
-const AGREEMENT_DOCUMENTS = [
+// All available documents (for reference)
+const ALL_DOCUMENTS = [
   { id: 'doc-1', name: 'land-reports-2025-04-21T10_19_42.23YZ.pdf' },
   { id: 'doc-2', name: 'lease-agreement-2024.pdf' },
   { id: 'doc-3', name: 'maintenance-contract-2025.pdf' },
@@ -94,10 +94,11 @@ export function AgreementPreview() {
   const navigate = useNavigate();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   
-  // Try to find agreement in mock data first, then in storage
-  const mockAgreement = mockAgreements.find((a) => a.id === id);
+  // Try to find agreement in storage first (to get latest saved data), then in mock data
   const storedAgreement = id ? getAgreementById(id) : undefined;
-  const agreement = mockAgreement || storedAgreement;
+  const mockAgreement = mockAgreements.find((a) => a.id === id);
+  // Prioritize stored agreement over mock (stored has latest saved documents)
+  const agreement = storedAgreement || mockAgreement;
 
   if (!agreement) {
     return (
@@ -296,17 +297,21 @@ export function AgreementPreview() {
 
             <TabsContent value="documents">
               <div className="bg-white border border-gray-200 rounded-lg p-6">
-                {AGREEMENT_DOCUMENTS.length > 0 ? (
+                {agreement.documents && agreement.documents.length > 0 ? (
                   <div className="space-y-3">
-                    {AGREEMENT_DOCUMENTS.map((doc) => (
-                      <div
-                        key={doc.id}
-                        className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-                      >
-                        {getFileIcon(doc.name)}
-                        <span className="text-gray-900 font-medium">{doc.name}</span>
-                      </div>
-                    ))}
+                    {agreement.documents.map((docId) => {
+                      const doc = ALL_DOCUMENTS.find(d => d.id === docId);
+                      if (!doc) return null;
+                      return (
+                        <div
+                          key={doc.id}
+                          className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                        >
+                          {getFileIcon(doc.name)}
+                          <span className="text-gray-900 font-medium">{doc.name}</span>
+                        </div>
+                      );
+                    })}
                   </div>
                 ) : (
                   <p className="text-gray-600 text-center py-8">No documents attached to this agreement.</p>

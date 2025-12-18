@@ -18,6 +18,7 @@ interface CategorySectionProps {
   isAnalyzing?: boolean;
   snippetsCount?: number;
   isAIApproved?: boolean;
+  hasAIGeneratedFields?: Record<string, boolean>; // Track which fields have AI-generated values
 }
 
 interface PDFReference {
@@ -158,6 +159,7 @@ export function CategorySection({
   isAnalyzing = false,
   snippetsCount = 0,
   isAIApproved = false,
+  hasAIGeneratedFields = {},
 }: CategorySectionProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [aiResponses, setAiResponses] = useState<AIResponse[]>([]);
@@ -263,6 +265,8 @@ export function CategorySection({
             snippet: ghostValue?.substring(0, 50) + '...'
           } : undefined}
           isAIApproved={isAIApproved}
+          aiMode={aiMode}
+          hasAIGeneratedValue={hasAIGeneratedFields[fieldId] || false}
         />
       );
     }
@@ -430,17 +434,23 @@ export function CategorySection({
                   </span>
                 </div>
               )}
-              {/* AI Fill Toggle - Only show in maintenance section when AI mode is OFF */}
-              {category === 'maintenance' && !aiMode && onToggleAiMode && (
+              {/* AI Fill Toggle - Show in maintenance section */}
+              {category === 'maintenance' && onToggleAiMode && (
                 <div className="flex items-center gap-3 animate-in fade-in slide-in-from-right duration-300">
                   <span className="text-sm text-gray-700">AI Fill</span>
                   <button
-                    onClick={() => onToggleAiMode(true)}
-                    className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors bg-gray-300 hover:bg-gray-400"
+                    onClick={() => onToggleAiMode(!aiMode)}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      aiMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-300 hover:bg-gray-400'
+                    }`}
                   >
-                    <span className="inline-block h-4 w-4 transform rounded-full bg-white transition-transform translate-x-1" />
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      aiMode ? 'translate-x-6' : 'translate-x-1'
+                    }`} />
                   </button>
-                  <span className="text-xs font-medium text-gray-500">OFF</span>
+                  <span className={`text-xs font-medium ${aiMode ? 'text-red-600' : 'text-gray-500'}`}>
+                    {aiMode ? 'ON' : 'OFF'}
+                  </span>
                 </div>
               )}
             </div>
