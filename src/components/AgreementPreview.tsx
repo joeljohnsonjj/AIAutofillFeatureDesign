@@ -221,14 +221,14 @@ export function AgreementPreview() {
             <TabsList className="mb-6 w-full justify-start overflow-x-auto">
               <TabsTrigger 
                 value="information" 
-                className="gap-2 whitespace-nowrap data-[state=active]:!bg-gray-200 data-[state=active]:!text-gray-900 data-[state=active]:border-gray-300"
+                className="gap-2 whitespace-nowrap data-[state=active]:bg-gray-200 data-[state=active]:text-gray-900"
               >
                 <FileText className="w-4 h-4" />
                 Information
               </TabsTrigger>
               <TabsTrigger 
                 value="documents" 
-                className="gap-2 whitespace-nowrap data-[state=active]:!bg-gray-200 data-[state=active]:!text-gray-900 data-[state=active]:border-gray-300"
+                className="gap-2 whitespace-nowrap data-[state=active]:bg-gray-200 data-[state=active]:text-gray-900"
               >
                 <Building2 className="w-4 h-4" />
                 Documents
