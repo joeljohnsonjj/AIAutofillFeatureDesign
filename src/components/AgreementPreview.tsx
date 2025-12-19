@@ -219,11 +219,17 @@ export function AgreementPreview() {
         <div className="max-w-7xl mx-auto px-6 py-6">
           <Tabs defaultValue="information" className="w-full">
             <TabsList className="mb-6 w-full justify-start overflow-x-auto">
-              <TabsTrigger value="information" className="gap-2 whitespace-nowrap">
+              <TabsTrigger 
+                value="information" 
+                className="gap-2 whitespace-nowrap data-[state=active]:!bg-gray-200 data-[state=active]:!text-gray-900 data-[state=active]:border-gray-300"
+              >
                 <FileText className="w-4 h-4" />
                 Information
               </TabsTrigger>
-              <TabsTrigger value="documents" className="gap-2 whitespace-nowrap">
+              <TabsTrigger 
+                value="documents" 
+                className="gap-2 whitespace-nowrap data-[state=active]:!bg-gray-200 data-[state=active]:!text-gray-900 data-[state=active]:border-gray-300"
+              >
                 <Building2 className="w-4 h-4" />
                 Documents
               </TabsTrigger>

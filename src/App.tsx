@@ -4,7 +4,7 @@ import { AgreementForm } from './components/AgreementForm';
 import { DocumentViewer } from './components/DocumentViewer';
 import { SnippetList } from './components/SnippetList';
 import { AIFillHelp } from './components/AIFillHelp';
-import { DocumentSelector, type Document } from './components/DocumentSelector';
+import type { Document } from './components/DocumentSelector';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from './components/ui/resizable';
 import { AIAnalyzingAnimation } from './components/AIAnalyzingAnimation';
 import { Search, Download, X, ArrowLeft } from 'lucide-react';
@@ -383,6 +383,68 @@ export default function App() {
         newSet.delete(documentId);
       }
       checkedDocumentsRef.current = newSet;
+      
+      // If AI mode is ON, refilter snippets based on new document selection
+      if (aiMode && newSet.size > 0) {
+        const selectedDocIds = Array.from(newSet);
+        const availableSnippets = SNIPPET_DATABASE.filter(snippet => {
+          const snippetDocId = snippet.documentId;
+          return snippetDocId && selectedDocIds.includes(snippetDocId);
+        });
+        
+        // If there are filled fields, filter by them too
+        const maintenanceFields = ['responsibleParty', 'maintenanceOwnerResponsibility', 'maintenanceReasoning'];
+        const filledFields = Object.entries(formData).filter(([key, value]) => {
+          return maintenanceFields.includes(key) && value && value.trim().length > 0;
+        });
+        
+        let filteredSnippets = availableSnippets;
+        
+        if (filledFields.length > 0) {
+          // Filter snippets that match the pre-filled fields
+          filteredSnippets = availableSnippets.filter(snippet => {
+            let matchScore = 0;
+            filledFields.forEach(([fieldId, fieldValue]) => {
+              const snippetValue = snippet.fieldMappings[fieldId];
+              if (snippetValue) {
+                const fieldLower = fieldValue.toLowerCase().trim();
+                const snippetLower = snippetValue.toLowerCase();
+                
+                if (snippetLower === fieldLower) {
+                  matchScore += 3;
+                } else if (snippetLower.includes(fieldLower)) {
+                  matchScore += 2;
+                } else {
+                  const fieldWords = fieldLower.split(/\s+/).filter(w => w.length > 2);
+                  const matchingWords = fieldWords.filter(word => snippetLower.includes(word));
+                  if (matchingWords.length > 0) {
+                    matchScore += matchingWords.length / fieldWords.length;
+                  }
+                }
+              }
+            });
+            return matchScore > 0;
+          });
+        }
+        
+        // Update snippets with confidence scores
+        const snippetsWithConfidence = filteredSnippets.map((snippet, index) => ({
+          ...snippet,
+          confidenceScore: snippet.confidenceScore !== undefined ? snippet.confidenceScore : 50,
+        }));
+        
+        setSnippets(snippetsWithConfidence);
+        
+        if (snippetsWithConfidence.length > 0) {
+          setHighlightedSection({
+            page: snippetsWithConfidence[0].pdfReference.page,
+            segment: snippetsWithConfidence[0].pdfReference.segment,
+          });
+        } else {
+          setHighlightedSection(null);
+        }
+      }
+      
       return newSet;
     });
   };
@@ -1499,20 +1561,11 @@ export default function App() {
 
       {aiMode ? (
         <>
-          {/* Document Selector and Search Bar - Side by Side */}
+          {/* Search Bar */}
           <div className="bg-white border-b border-gray-300 sticky top-0 z-20">
-            <div className="flex items-center gap-3 px-4 py-2.5">
-              {/* Document Selector - Left Side (compact) */}
-              <div className="flex-shrink-0">
-                <DocumentSelector
-                  documents={DOCUMENTS}
-                  selectedDocumentId={selectedDocumentId}
-                  onSelectDocument={handleSelectDocument}
-                />
-              </div>
-
-              {/* Global Search Bar - Extends to the left */}
-              <div className="flex-1 relative min-w-0">
+            <div className="px-4 py-2.5">
+              {/* Global Search Bar */}
+              <div className="relative w-full">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <input
                   type="text"
