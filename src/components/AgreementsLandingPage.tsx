@@ -89,6 +89,8 @@ export function AgreementsLandingPage() {
   const [filteredAgreements, setFilteredAgreements] = useState<Agreement[]>([]);
   const [sortBy, setSortBy] = useState<'name' | 'modified' | 'id'>('modified');
   const [showSortDropdown, setShowSortDropdown] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [sidebarPrompt, setSidebarPrompt] = useState('');
 
   // Sort agreements based on current sort option
   const sortAgreements = (agreements: Agreement[]): Agreement[] => {
@@ -183,9 +185,9 @@ export function AgreementsLandingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Header - Same as agreement form page */}
-      <header className="bg-white border-b border-gray-200 px-6 py-4">
+      <header className="bg-white border-b border-gray-200 px-6 py-4 relative z-30">
         <div className="flex items-center justify-between max-w-full mx-auto">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1">
@@ -208,154 +210,238 @@ export function AgreementsLandingPage() {
         </div>
       </header>
 
-      {/* Main Content */}
-      <div className="w-full">
-        {/* Content Header */}
-        <div className="bg-white border-b border-gray-200">
-          <div className="max-w-7xl mx-auto px-6 py-8">
-            <div className="flex items-start justify-between mb-6">
-              <div className="flex-1 max-w-3xl">
-                <h1 className="text-3xl font-bold text-gray-900 mb-3">Agreements</h1>
-                <p className="text-gray-600 text-base leading-relaxed">
-                  Organize and manage agreements within your location hierarchy. Define terms, track
-                  details, and ensure seamless integration with Campuses, Buildings, Sub-locations,
-                  and Zones for complete visibility and informed decision-making.
-                </p>
+      {/* Main Content Container */}
+      <div className="flex-1 flex relative">
+        {/* Main Content */}
+        <div className={`flex-1 transition-all duration-300 ${isSidebarOpen ? 'mr-96' : ''}`}>
+          {/* Content Header */}
+          <div className="bg-white border-b border-gray-200">
+            <div className="max-w-7xl mx-auto px-6 py-8">
+              <div className="flex items-start justify-between mb-6">
+                <div className="flex-1 max-w-3xl">
+                  <h1 className="text-3xl font-bold text-gray-900 mb-3">Agreements</h1>
+                  <p className="text-gray-600 text-base leading-relaxed">
+                    Organize and manage agreements within your location hierarchy. Define terms, track
+                    details, and ensure seamless integration with Campuses, Buildings, Sub-locations,
+                    and Zones for complete visibility and informed decision-making.
+                  </p>
+                </div>
+                <div className="ml-6 flex-shrink-0">
+                  <Button 
+                    onClick={handleNewAgreement}
+                    className="bg-gray-800 hover:bg-gray-700 text-white whitespace-nowrap"
+                    style={{ backgroundColor: '#007bff' , color: 'white'}}
+                  >
+                    + New Agreement
+                  </Button>
+                </div>
               </div>
-              <div className="ml-6 flex-shrink-0">
-                <Button 
-                  onClick={handleNewAgreement}
-                  className="bg-gray-800 hover:bg-gray-700 text-white whitespace-nowrap"
-                  style={{ backgroundColor: '#007bff' , color: 'white'}}
-                >
-                  + New Agreement
-                </Button>
+
+              {/* Search Bar and Sort Dropdown - Side by Side */}
+              <div className="flex items-center gap-4">
+                {/* Search Bar */}
+                <div className="relative flex-1 max-w-2xl">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+                  <Input
+                    type="text"
+                    placeholder="Search"
+                    value={searchTerm}
+                    onChange={(e) => handleSearch(e.target.value)}
+                    className="pl-12 h-12 border-gray-300 rounded-lg"
+                  />
+                </div>
+                
+                {/* Sort By Dropdown - Right side */}
+                <div className="relative flex-shrink-0">
+                  <button
+                    onClick={() => setShowSortDropdown(!showSortDropdown)}
+                    className="flex items-center gap-2 px-4 py-2.5 h-12 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm font-medium text-gray-700 bg-white"
+                  >
+                    <span>Sort by: {getSortLabel()}</span>
+                    <ChevronDown className="w-4 h-4" />
+                  </button>
+                  
+                  {showSortDropdown && (
+                    <>
+                      {/* Backdrop */}
+                      <div 
+                        className="fixed inset-0 z-10" 
+                        onClick={() => setShowSortDropdown(false)}
+                      />
+                      {/* Dropdown Menu */}
+                      <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-lg z-20">
+                        <div className="py-1">
+                          <button
+                            onClick={() => handleSortChange('modified')}
+                            className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center justify-between ${
+                              sortBy === 'modified' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'
+                            }`}
+                          >
+                            <span>Last Modified</span>
+                            {sortBy === 'modified' && <span className="text-blue-600">✓</span>}
+                          </button>
+                          <button
+                            onClick={() => handleSortChange('name')}
+                            className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center justify-between ${
+                              sortBy === 'name' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'
+                            }`}
+                          >
+                            <span>Agreement Name</span>
+                            {sortBy === 'name' && <span className="text-blue-600">✓</span>}
+                          </button>
+                          <button
+                            onClick={() => handleSortChange('id')}
+                            className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center justify-between ${
+                              sortBy === 'id' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'
+                            }`}
+                          >
+                            <span>Agreement ID</span>
+                            {sortBy === 'id' && <span className="text-blue-600">✓</span>}
+                          </button>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
+          </div>
 
-            {/* Search Bar and Sort Dropdown - Side by Side */}
-            <div className="flex items-center gap-4">
-              {/* Search Bar */}
-              <div className="relative flex-1 max-w-2xl">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
-                <Input
-                  type="text"
-                  placeholder="Search"
-                  value={searchTerm}
-                  onChange={(e) => handleSearch(e.target.value)}
-                  className="pl-12 h-12 border-gray-300 rounded-lg"
-                />
-              </div>
-              
-              {/* Sort By Dropdown - Right side */}
-              <div className="relative flex-shrink-0">
-                <button
-                  onClick={() => setShowSortDropdown(!showSortDropdown)}
-                  className="flex items-center gap-2 px-4 py-2.5 h-12 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm font-medium text-gray-700 bg-white"
+          {/* Results */}
+          <div className="max-w-7xl mx-auto px-6 py-6">
+            <div className="flex items-center justify-between mb-6">
+              <p className="text-gray-600">{filteredAgreements.length} Agreement results</p>
+            </div>
+
+            {/* Agreement Cards */}
+            <div className="space-y-4">
+              {filteredAgreements.map((agreement, index) => (
+                <motion.div
+                  key={agreement.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                  className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow"
                 >
-                  <span>Sort by: {getSortLabel()}</span>
-                  <ChevronDown className="w-4 h-4" />
-                </button>
-                
-                {showSortDropdown && (
-                  <>
-                    {/* Backdrop */}
-                    <div 
-                      className="fixed inset-0 z-10" 
-                      onClick={() => setShowSortDropdown(false)}
-                    />
-                    {/* Dropdown Menu */}
-                    <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-lg z-20">
-                      <div className="py-1">
-                        <button
-                          onClick={() => handleSortChange('modified')}
-                          className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center justify-between ${
-                            sortBy === 'modified' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-3 mb-3 flex-wrap">
+                        <h3 className="text-lg font-semibold text-gray-900">{agreement.agreementNumber}</h3>
+                        <span className="text-gray-400">•</span>
+                        <span className="text-gray-800 font-medium">{agreement.name}</span>
+                      </div>
+                      <div className="flex items-center gap-4 text-gray-600 mb-3 flex-wrap">
+                        <span className="text-sm">{agreement.date}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`px-3 py-1 rounded-full text-sm font-medium ${
+                            agreement.status === 'Active'
+                              ? 'bg-green-100 text-green-800'
+                              : agreement.status === 'Pending'
+                              ? 'bg-yellow-100 text-yellow-800'
+                              : 'bg-gray-100 text-gray-800'
                           }`}
                         >
-                          <span>Last Modified</span>
-                          {sortBy === 'modified' && <span className="text-blue-600">✓</span>}
-                        </button>
-                        <button
-                          onClick={() => handleSortChange('name')}
-                          className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center justify-between ${
-                            sortBy === 'name' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'
-                          }`}
-                        >
-                          <span>Agreement Name</span>
-                          {sortBy === 'name' && <span className="text-blue-600">✓</span>}
-                        </button>
-                        <button
-                          onClick={() => handleSortChange('id')}
-                          className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center justify-between ${
-                            sortBy === 'id' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'
-                          }`}
-                        >
-                          <span>Agreement ID</span>
-                          {sortBy === 'id' && <span className="text-blue-600">✓</span>}
-                        </button>
+                          {agreement.status}
+                        </span>
                       </div>
                     </div>
-                  </>
-                )}
-              </div>
+                    <div className="flex-shrink-0">
+                      <Button
+                        onClick={() => handleViewAgreement(agreement.id)}
+                        className="bg-blue-600 hover:bg-blue-700 text-white whitespace-nowrap"
+                      >
+                        View agreement
+                      </Button>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
             </div>
           </div>
         </div>
 
-        {/* Results */}
-        <div className="max-w-7xl mx-auto px-6 py-6">
-          <div className="flex items-center justify-between mb-6">
-            <p className="text-gray-600">{filteredAgreements.length} Agreement results</p>
+        {/* Agreements 101 Sidebar */}
+        <motion.div
+          initial={false}
+          animate={{ x: isSidebarOpen ? 0 : '100%' }}
+          transition={{ duration: 0.3, ease: 'easeInOut' }}
+          className="fixed right-0 top-[73px] bottom-0 w-96 bg-white border-l border-gray-200 shadow-lg z-20 flex flex-col"
+        >
+          {/* Sidebar Header */}
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+            <h2 className="text-xl font-bold text-gray-900">Agreements 101</h2>
+            <button
+              onClick={() => setIsSidebarOpen(false)}
+              className="text-gray-500 hover:text-gray-700 p-1"
+            >
+              ✕
+            </button>
           </div>
 
-          {/* Agreement Cards */}
-          <div className="space-y-4">
-            {filteredAgreements.map((agreement, index) => (
-              <motion.div
-                key={agreement.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05 }}
-                className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-3 mb-3 flex-wrap">
-                      <h3 className="text-lg font-semibold text-gray-900">{agreement.agreementNumber}</h3>
-                      <span className="text-gray-400">•</span>
-                      <span className="text-gray-800 font-medium">{agreement.name}</span>
-                    </div>
-                    <div className="flex items-center gap-4 text-gray-600 mb-3 flex-wrap">
-                      <span className="text-sm">{agreement.date}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`px-3 py-1 rounded-full text-sm font-medium ${
-                          agreement.status === 'Active'
-                            ? 'bg-green-100 text-green-800'
-                            : agreement.status === 'Pending'
-                            ? 'bg-yellow-100 text-yellow-800'
-                            : 'bg-gray-100 text-gray-800'
-                        }`}
-                      >
-                        {agreement.status}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex-shrink-0">
-                    <Button
-                      onClick={() => handleViewAgreement(agreement.id)}
-                      className="bg-blue-600 hover:bg-blue-700 text-white whitespace-nowrap"
-                    >
-                      View agreement
-                    </Button>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
+          {/* Search/Prompt Input */}
+          <div className="px-6 py-4 border-b border-gray-200">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+              <Input
+                type="text"
+                placeholder="Enter Prompt"
+                value={sidebarPrompt}
+                onChange={(e) => setSidebarPrompt(e.target.value)}
+                className="pl-10 h-10 border-gray-300 rounded-lg"
+              />
+            </div>
           </div>
-        </div>
+
+          {/* Sidebar Content Area */}
+          <div className="flex-1 overflow-y-auto px-6 py-4 height-full top-20">
+            {/* Empty content area - extends full height */}
+            <div className="h-full ">
+             <br/>
+             <br/>
+             <br/>
+             <br/>
+             <br/>
+             <br/>
+             <br/>
+             <br/>
+             <br/>
+             <br/>
+             <br/>
+             <br/>
+             <br/>
+             <br/>
+             <br/>
+             <br/>
+             <br/>
+             <br/>
+             <br/>
+             <br/>
+             <br/>
+             <br/>
+             <br/>       
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Agreements 101 Toggle Button - Rotated 90 degrees */}
+        <button
+          onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+          className="fixed bg-blue-600 text-white shadow-lg hover:bg-blue-700 z-20 flex items-center gap-2"
+          style={{
+            right: isSidebarOpen ? '410px' : '20px',
+            top: '50%',
+            padding: '12px 16px',
+            transform: 'rotate(-90deg)',
+            transformOrigin: 'right center',
+            borderRadius: '8px 8px 0 0',
+            transition: 'right 0.3s ease-in-out'
+          }}
+        >
+          <span className="text-sm font-medium whitespace-nowrap">Agreements 101</span>
+          <span className="text-lg font-bold" style={{ transform: 'rotate(90deg)' }}>‹</span>
+        </button>
       </div>
     </div>
   );
