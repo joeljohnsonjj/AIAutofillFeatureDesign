@@ -938,6 +938,34 @@ export default function App() {
       setGhostValues({});
       // Note: We intentionally DO NOT reset isAIApproved and aiApprovedFormData here
       // This ensures the "Approve AI Changes" button remains visible even when AI mode is off
+      
+      // Scroll to maintenance section when toggling OFF AI mode
+      setTimeout(() => {
+        // Find the maintenance section and scroll to it within the form panel
+        const maintenanceSection = document.querySelector('[data-section="maintenance"]');
+        if (maintenanceSection) {
+          // Find the scrollable form container
+          const formContainer = maintenanceSection.closest('.overflow-y-auto');
+          if (formContainer) {
+            // Calculate position relative to the scrollable container
+            const containerRect = formContainer.getBoundingClientRect();
+            const sectionRect = maintenanceSection.getBoundingClientRect();
+            const scrollTop = formContainer.scrollTop;
+            const relativeTop = sectionRect.top - containerRect.top + scrollTop;
+            
+            formContainer.scrollTo({
+              top: relativeTop - 20, // 20px offset from top
+              behavior: 'smooth',
+            });
+          } else {
+            // Fallback to regular scrollIntoView
+            maintenanceSection.scrollIntoView({
+              behavior: 'smooth',
+              block: 'start',
+            });
+          }
+        }
+      }, 300); // Small delay to ensure the form is rendered
     }
     
     // When toggling ON AI mode, check if documents are selected first
@@ -1453,6 +1481,34 @@ export default function App() {
       setGhostValues({}); // Clear ghost values
       setAiMode(false); // Turn off AI mode
       // Do not navigate - user stays on the form page
+      
+      // Scroll to maintenance section when accept button is clicked
+      setTimeout(() => {
+        // Find the maintenance section and scroll to it within the form panel
+        const maintenanceSection = document.querySelector('[data-section="maintenance"]');
+        if (maintenanceSection) {
+          // Find the scrollable form container
+          const formContainer = maintenanceSection.closest('.overflow-y-auto');
+          if (formContainer) {
+            // Calculate position relative to the scrollable container
+            const containerRect = formContainer.getBoundingClientRect();
+            const sectionRect = maintenanceSection.getBoundingClientRect();
+            const scrollTop = formContainer.scrollTop;
+            const relativeTop = sectionRect.top - containerRect.top + scrollTop;
+            
+            formContainer.scrollTo({
+              top: relativeTop - 20, // 20px offset from top
+              behavior: 'smooth',
+            });
+          } else {
+            // Fallback to regular scrollIntoView
+            maintenanceSection.scrollIntoView({
+              behavior: 'smooth',
+              block: 'start',
+            });
+          }
+        }
+      }, 300); // Small delay to ensure the form is rendered
     }
   };
 
