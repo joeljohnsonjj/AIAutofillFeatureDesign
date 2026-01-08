@@ -53,7 +53,7 @@ export const getAgreements = (): Agreement[] => {
 };
 
 // Save an agreement to storage
-export const saveAgreement = (agreementData: Omit<Agreement, 'id' | 'agreementNumber'>, status: 'Accepted' | 'Pending', existingId?: string, existingAgreementNumber?: string): Agreement => {
+export const saveAgreement = (agreementData: Omit<Agreement, 'id' | 'agreementNumber'>, status: 'Active' | 'Needs Review', existingId?: string, existingAgreementNumber?: string): Agreement => {
   const agreements = getAgreements();
   const newAgreement: Agreement = {
     id: existingId || `agreement-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,

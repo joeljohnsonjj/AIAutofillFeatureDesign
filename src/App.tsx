@@ -1,12 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AgreementForm } from './components/AgreementForm';
 import { DocumentViewer } from './components/DocumentViewer';
 import { SnippetList } from './components/SnippetList';
 import type { Document } from './components/DocumentSelector';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from './components/ui/resizable';
-import { AIAnalyzingAnimation } from './components/AIAnalyzingAnimation';
-import { Search, Download, X, ArrowLeft } from 'lucide-react';
+import { Search, X, ArrowLeft } from 'lucide-react';
 import { saveAgreement, getAgreementById, updateAgreement } from './utils/agreementStorage';
 import type { Agreement } from './components/AgreementsLandingPage';
 
@@ -323,7 +322,7 @@ const mockAgreements: Agreement[] = [
     name: 'Waste Management Contract',
     date: '04/18/2024',
     location: 'Building C - Distribution Center',
-    status: 'Pending',
+    status: 'Needs Review',
     notes: 'Bi-weekly waste collection and recycling services.',
   },
 ];
@@ -404,7 +403,7 @@ export default function App() {
           filteredSnippets = availableSnippets.filter(snippet => {
             let matchScore = 0;
             filledFields.forEach(([fieldId, fieldValue]) => {
-              const snippetValue = snippet.fieldMappings[fieldId];
+              const snippetValue = snippet.fieldMappings[fieldId as keyof typeof snippet.fieldMappings];
               if (snippetValue) {
                 const fieldLower = fieldValue.toLowerCase().trim();
                 const snippetLower = snippetValue.toLowerCase();
@@ -427,9 +426,9 @@ export default function App() {
         }
         
         // Update snippets with confidence scores
-        const snippetsWithConfidence = filteredSnippets.map((snippet, index) => ({
+        const snippetsWithConfidence = filteredSnippets.map((snippet) => ({
           ...snippet,
-          confidenceScore: snippet.confidenceScore !== undefined ? snippet.confidenceScore : 50,
+          confidenceScore: 'confidenceScore' in snippet && snippet.confidenceScore !== undefined ? snippet.confidenceScore : 50,
         }));
         
         setSnippets(snippetsWithConfidence);
@@ -496,12 +495,12 @@ export default function App() {
           setCheckedDocuments(docsSet);
           checkedDocumentsRef.current = docsSet;
         } else {
-          const emptySet = new Set();
+          const emptySet = new Set<string>();
           setCheckedDocuments(emptySet);
           checkedDocumentsRef.current = emptySet;
         }
         // Reset applied snippets when loading (we don't track which snippets were used)
-        const emptySnippetsSet = new Set();
+        const emptySnippetsSet = new Set<string>();
         setAppliedSnippets(emptySnippetsSet);
         appliedSnippetsRef.current = emptySnippetsSet;
       } else {
@@ -523,15 +522,15 @@ export default function App() {
           });
           // Reset checked documents and applied snippets for mock agreements
           if (mockAgreement.documents && mockAgreement.documents.length > 0) {
-            const docsSet = new Set(mockAgreement.documents);
+            const docsSet = new Set<string>(mockAgreement.documents);
             setCheckedDocuments(docsSet);
             checkedDocumentsRef.current = docsSet;
           } else {
-            const emptySet = new Set();
+            const emptySet = new Set<string>();
             setCheckedDocuments(emptySet);
             checkedDocumentsRef.current = emptySet;
           }
-          const emptySnippetsSet = new Set();
+          const emptySnippetsSet = new Set<string>();
           setAppliedSnippets(emptySnippetsSet);
           appliedSnippetsRef.current = emptySnippetsSet;
         }
@@ -551,8 +550,8 @@ export default function App() {
         billingAgreement: '',
       });
       // Reset checked documents and applied snippets for new agreement
-      const emptyDocsSet = new Set();
-      const emptySnippetsSet = new Set();
+      const emptyDocsSet = new Set<string>();
+      const emptySnippetsSet = new Set<string>();
       setCheckedDocuments(emptyDocsSet);
       setAppliedSnippets(emptySnippetsSet);
       checkedDocumentsRef.current = emptyDocsSet;
@@ -598,7 +597,6 @@ export default function App() {
   // - There are ghost values (unapproved AI suggestions) - regardless of AI mode state
   // - AI fields exist but haven't been approved yet - regardless of AI mode state
   // - AI fields were approved but then modified (form data differs from approved data) - regardless of AI mode state
-  const maintenanceFields = ['responsibleParty', 'maintenanceOwnerResponsibility', 'maintenanceReasoning'];
   const hasUnapprovedGhostValues = Object.keys(ghostValues).length > 0;
   
   // Check if approved data differs from current form data (user modified approved AI values)
@@ -636,13 +634,7 @@ export default function App() {
     }
   }, [snippets.length, selectedDocumentId]);
 
-  const handleSelectDocument = (documentId: string) => {
-    setSelectedDocumentId(documentId);
-    setLastViewedDocumentId(documentId);
-  };
-
   const selectedDocument = DOCUMENTS.find(doc => doc.id === selectedDocumentId);
-  const lastViewedDocument = DOCUMENTS.find(doc => doc.id === lastViewedDocumentId);
 
   const handleFieldChange = (fieldId: string, value: string) => {
     setFormData(prev => {
@@ -759,7 +751,7 @@ export default function App() {
       
       // Check each field that has a value
       Object.entries(fieldValues).forEach(([fid, fieldValue]) => {
-        const snippetValue = snippet.fieldMappings[fid];
+        const snippetValue = snippet.fieldMappings[fid as keyof typeof snippet.fieldMappings];
         
         // Skip if snippet doesn't have this field
         if (!snippetValue) {
@@ -793,7 +785,7 @@ export default function App() {
               }
               // Also check if any word in snippet starts with this word (for partial typing like "Inte" -> "Integrity")
               const snippetWords = snippetLower.split(/\s+/);
-              return snippetWords.some(snippetWord => snippetWord.startsWith(word));
+              return snippetWords.some((snippetWord: string) => snippetWord.startsWith(word));
             });
             if (matchingWords.length > 0) {
               // Partial score based on how many words match
@@ -843,8 +835,8 @@ export default function App() {
       // Recalculate scores for sorting (more accurate)
       Object.entries(fieldValues).forEach(([fid, fieldValue]) => {
         const fieldLower = fieldValue.toLowerCase();
-        const aValue = a.fieldMappings[fid]?.toLowerCase() || '';
-        const bValue = b.fieldMappings[fid]?.toLowerCase() || '';
+        const aValue = a.fieldMappings[fid as keyof typeof a.fieldMappings]?.toLowerCase() || '';
+        const bValue = b.fieldMappings[fid as keyof typeof b.fieldMappings]?.toLowerCase() || '';
         
         // Check match quality for snippet A
         if (aValue === fieldLower) {
@@ -986,7 +978,7 @@ export default function App() {
         matches = availableSnippets.filter(snippet => {
           let matchScore = 0;
           filledFields.forEach(([fieldId, fieldValue]) => {
-            const snippetValue = snippet.fieldMappings[fieldId];
+            const snippetValue = snippet.fieldMappings[fieldId as keyof typeof snippet.fieldMappings];
             if (snippetValue) {
               const fieldLower = fieldValue.toLowerCase().trim();
               const snippetLower = snippetValue.toLowerCase();
@@ -1135,34 +1127,6 @@ export default function App() {
     handleFieldSearchWithData(fieldId, searchValue, formDataRef.current);
   };
 
-  const handleClearAll = () => {
-    setFormData({
-      agreementName: '',
-      agreementDate: '',
-      notes: '',
-      responsibleParty: '',
-      maintenanceOwnerResponsibility: '',
-      maintenanceReasoning: '',
-      billingContact: '',
-      billingAgreement: '',
-    });
-    setGhostValues({});
-    setGlobalSearchQuery('');
-    setIsAnalyzing(false);
-    // Show all snippets when all fields are cleared
-    const snippetsWithConfidence = SNIPPET_DATABASE.map(snippet => ({
-      ...snippet,
-      confidenceScore: 50, // Default confidence when no search criteria
-    }));
-    setSnippets(snippetsWithConfidence);
-    if (SNIPPET_DATABASE.length > 0) {
-      setHighlightedSection({
-        page: SNIPPET_DATABASE[0].pdfReference.page,
-        segment: SNIPPET_DATABASE[0].pdfReference.segment,
-      });
-    }
-  };
-
   const handleGlobalSearch = (query: string) => {
     setGlobalSearchQuery(query);
     
@@ -1272,24 +1236,6 @@ export default function App() {
     setGhostValues(newGhostValues);
   };
 
-  // Accept ghost values - converts ghost text to solid text
-  const handleAcceptGhostValues = () => {
-    // Convert all ghost values to actual form data
-    setFormData(prev => {
-      const updated = { ...prev };
-      Object.entries(ghostValues).forEach(([fieldId, ghostValue]) => {
-        // Only accept if field is empty or already has the ghost value
-        if (!prev[fieldId] || prev[fieldId].trim().length === 0) {
-          updated[fieldId] = ghostValue;
-        }
-      });
-      return updated;
-    });
-    
-    // Clear ghost values after accepting
-    setGhostValues({});
-  };
-
   const handleBack = () => {
     if (id) {
       navigate(`/agreements/${id}`);
@@ -1298,19 +1244,8 @@ export default function App() {
     }
   };
 
-  const handleSave = () => {
-    // Save logic here
-    console.log('Saving agreement:', formData);
-    // Navigate back to preview or list
-    if (id) {
-      navigate(`/agreements/${id}`);
-    } else {
-      navigate('/agreements');
-    }
-  };
-
   const handleSaveDraft = () => {
-    // Save as draft - no validation, set status to Pending
+    // Save as draft - no validation, set status to Needs Review
     // Use ref to get the latest checked documents (in case state hasn't updated yet)
     const documentsArray = Array.from(checkedDocumentsRef.current);
     console.log('💾 Saving draft - checked documents (from state):', Array.from(checkedDocuments));
@@ -1321,6 +1256,7 @@ export default function App() {
       name: formData.agreementName || 'Untitled Agreement',
       date: formData.agreementDate || new Date().toLocaleDateString('en-US'),
       location: editingAgreement?.location || 'Not specified',
+      status: 'Needs Review',
       notes: formData.notes,
       maintenance: formData.responsibleParty || formData.maintenanceOwnerResponsibility || formData.maintenanceReasoning
         ? {
@@ -1340,10 +1276,7 @@ export default function App() {
       
       if (existingInStorage) {
         // Update existing stored agreement
-        const updated = updateAgreement(editingAgreement.id, {
-          ...agreementData,
-          status: 'Pending',
-        });
+        const updated = updateAgreement(editingAgreement.id, agreementData);
         if (updated) {
           console.log('Updated agreement as draft:', updated);
           navigate(`/agreements/${editingAgreement.id}`);
@@ -1354,7 +1287,7 @@ export default function App() {
         // Mock agreement - save to storage preserving original ID and agreement number
         const savedAgreement = saveAgreement(
           agreementData,
-          'Pending',
+          'Needs Review',
           editingAgreement.id,
           editingAgreement.agreementNumber
         );
@@ -1363,7 +1296,7 @@ export default function App() {
       }
     } else {
       // Create new agreement
-      const savedAgreement = saveAgreement(agreementData, 'Pending');
+      const savedAgreement = saveAgreement(agreementData, 'Needs Review');
       console.log('Saved agreement as draft:', savedAgreement);
       // Navigate to preview page to see the saved agreement with documents
       navigate(`/agreements/${savedAgreement.id}`);
@@ -1387,6 +1320,7 @@ export default function App() {
       name: formData.agreementName || 'Untitled Agreement',
       date: formData.agreementDate || new Date().toLocaleDateString('en-US'),
       location: editingAgreement?.location || 'Not specified',
+      status: 'Active',
       notes: formData.notes,
       maintenance: formData.responsibleParty || formData.maintenanceOwnerResponsibility || formData.maintenanceReasoning
         ? {
@@ -1406,12 +1340,9 @@ export default function App() {
       
       if (existingInStorage) {
         // Update existing stored agreement
-        const updated = updateAgreement(editingAgreement.id, {
-          ...agreementData,
-          status: 'Active',
-        });
+        const updated = updateAgreement(editingAgreement.id, agreementData);
         if (updated) {
-          console.log('Updated agreement as accepted:', updated);
+          console.log('Updated agreement as active:', updated);
           navigate(`/agreements/${editingAgreement.id}`);
         } else {
           console.error('Failed to update agreement');
@@ -1424,7 +1355,7 @@ export default function App() {
           editingAgreement.id,
           editingAgreement.agreementNumber
         );
-        console.log('Saved mock agreement as accepted (preserving ID):', savedAgreement);
+        console.log('Saved mock agreement as active (preserving ID):', savedAgreement);
         navigate(`/agreements/${editingAgreement.id}`);
       }
     } else {

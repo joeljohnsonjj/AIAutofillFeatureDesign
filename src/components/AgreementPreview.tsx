@@ -84,7 +84,7 @@ const mockAgreements: Agreement[] = [
     name: 'Waste Management Contract',
     date: '04/18/2024',
     location: 'Building C - Distribution Center',
-    status: 'Pending',
+    status: 'Needs Review',
     notes: 'Bi-weekly waste collection and recycling services.',
   },
 ];

@@ -76,7 +76,7 @@ const mockAgreements: Agreement[] = [
     name: 'Waste Management Contract',
     date: '04/18/2024',
     location: 'Building C - Distribution Center',
-    status: 'Pending',
+    status: 'Needs Review',
     notes: 'Bi-weekly waste collection and recycling services.',
   },
 ];
@@ -338,7 +338,7 @@ export function AgreementsLandingPage() {
                           className={`px-3 py-1 rounded-full text-sm font-medium ${
                             agreement.status === 'Active'
                               ? 'bg-green-100 text-green-800'
-                              : agreement.status === 'Pending'
+                              : agreement.status === 'Needs Review'
                               ? 'bg-yellow-100 text-yellow-800'
                               : 'bg-gray-100 text-gray-800'
                           }`}

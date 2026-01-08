@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { ChevronLeft, ChevronRight, Check } from 'lucide-react';
 import {
   Tooltip,
@@ -57,7 +57,7 @@ export function SnippetCarousel({
     }
 
     let lastIndex = 0;
-    const parts: JSX.Element[] = [];
+    const parts: React.ReactElement[] = [];
 
     // Sort highlights by their position in the text
     const sortedHighlights = [...highlights].sort((a, b) => {
