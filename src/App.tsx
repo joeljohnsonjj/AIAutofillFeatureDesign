@@ -1442,10 +1442,12 @@ export default function App() {
     });
     
     // Only clear snippets if not keeping them visible (for auto-prefill)
-    // DO NOT navigate - stay on the same page
+    // When accept button is clicked, turn off AI mode
     if (!keepSnippetsVisible) {
       setSnippets([]);
       setGlobalSearchQuery('');
+      setGhostValues({}); // Clear ghost values
+      setAiMode(false); // Turn off AI mode
       // Do not navigate - user stays on the form page
     }
   };

@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { Check, X, Eye, FileText, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Check, X, FileText, ChevronLeft, ChevronRight } from 'lucide-react';
 import { PDFSnippetViewer } from './PDFSnippetViewer';
 import { AIAnalyzingAnimation } from './AIAnalyzingAnimation';
 
@@ -57,6 +57,20 @@ export function SnippetList({
   useEffect(() => {
     setCurrentIndex(0);
   }, [snippets]);
+
+  // Automatically preview the current snippet when it changes
+  useEffect(() => {
+    if (currentSnippet && onPreview) {
+      onPreview(currentSnippet);
+    }
+    
+    // Cleanup: clear preview when component unmounts or snippet changes
+    return () => {
+      if (onPreview) {
+        onPreview({ ...currentSnippet, fieldMappings: {} } as any);
+      }
+    };
+  }, [currentIndex, snippets]);
 
   if (snippets.length === 0) return null;
 
@@ -161,32 +175,12 @@ export function SnippetList({
                 </div>
               </div>
 
-              {/* Accept and Preview Buttons */}
+              {/* Accept Button */}
               <div className="px-4 pb-4" onClick={(e) => e.stopPropagation()}>
-                <div className="flex items-center gap-3">
-                  {/* Preview Button */}
-                  <button
-                    onMouseEnter={() => {
-                      if (onPreview) {
-                        onPreview(snippet);
-                      }
-                    }}
-                    onMouseLeave={() => {
-                      if (onPreview) {
-                        // Clear preview by passing empty ghost values
-                        onPreview({ ...snippet, fieldMappings: {} } as any);
-                      }
-                    }}
-                    className="flex-1 px-4 py-2.5 border border-blue-300 rounded-lg hover:bg-blue-50 hover:border-blue-400 transition-colors flex items-center justify-center gap-2 text-blue-700"
-                  >
-                    <Eye className="w-4 h-4" />
-                    <span className="text-sm font-medium">Preview</span>
-                  </button>
-                  
-                  {/* Accept Button */}
+                <div className="flex items-center justify-center">
                   <button
                     onClick={() => onApply(snippet)}
-                    className="flex-1 px-4 py-2.5 border border-red-300 rounded-lg hover:bg-red-50 hover:border-red-400 transition-colors flex items-center justify-center gap-2 text-red-700"
+                    className="px-6 py-2.5 border border-red-300 rounded-lg hover:bg-red-50 hover:border-red-400 transition-colors flex items-center justify-center gap-2 text-red-700"
                   >
                     <Check className="w-4 h-4" />
                     <span className="text-sm font-medium">Accept</span>
@@ -269,32 +263,12 @@ export function SnippetList({
                 </div>
               </div>
 
-              {/* Accept and Preview Buttons */}
+              {/* Accept Button */}
               <div className="px-4 pb-4" onClick={(e) => e.stopPropagation()}>
-                <div className="flex items-center gap-3">
-                  {/* Preview Button */}
-                  <button
-                    onMouseEnter={() => {
-                      if (onPreview) {
-                        onPreview(snippet);
-                      }
-                    }}
-                    onMouseLeave={() => {
-                      if (onPreview) {
-                        // Clear preview by passing empty ghost values
-                        onPreview({ ...snippet, fieldMappings: {} } as any);
-                      }
-                    }}
-                    className="flex-1 px-4 py-2.5 border border-blue-300 rounded-lg hover:bg-blue-50 hover:border-blue-400 transition-colors flex items-center justify-center gap-2 text-blue-700"
-                  >
-                    <Eye className="w-4 h-4" />
-                    <span className="text-sm font-medium">Preview</span>
-                  </button>
-                  
-                  {/* Accept Button */}
+                <div className="flex items-center justify-center">
                   <button
                     onClick={() => onApply(snippet)}
-                    className="flex-1 px-4 py-2.5 border border-red-300 rounded-lg hover:bg-red-50 hover:border-red-400 transition-colors flex items-center justify-center gap-2 text-red-700"
+                    className="px-6 py-2.5 border border-red-300 rounded-lg hover:bg-red-50 hover:border-red-400 transition-colors flex items-center justify-center gap-2 text-red-700"
                   >
                     <Check className="w-4 h-4" />
                     <span className="text-sm font-medium">Accept</span>
