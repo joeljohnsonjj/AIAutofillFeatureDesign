@@ -39,116 +39,10 @@ interface AIResponse {
 }
 
 // Mock AI responses based on search quer
-const getAIResponses = (query: string, category: string): AIResponse[] => {
-  if (!query.trim()) return [];
-
-  const responses: Record<string, AIResponse[]> = {
-    maintenance: [
-      {
-        id: '1',
-        title: 'Owner Responsibility - Structural & Systems',
-        summary: 'Property owner responsible for all structural repairs and major building systems',
-        citation: 'Source: State Commercial Code §45.2(b), Building Maintenance Standards',
-        fieldMappings: {
-          responsibleParty: 'Property Owner',
-          maintenanceOwnerResponsibility: 'Structural repairs, roof maintenance, HVAC systems, and major plumbing',
-          maintenanceReasoning: 'Standard commercial property allocation per state law. Owner retains responsibility for major systems and structural elements while tenant handles day-to-day maintenance.',
-        },
-        pdfReferences: [
-          {
-            page: 12,
-            segment: 'Property Owner',
-            context: 'Section 3.2: The Property Owner shall be responsible for all structural repairs, including but not limited to foundation work, load-bearing walls, and roof maintenance.'
-          },
-          {
-            page: 15,
-            segment: 'Structural repairs, roof maintenance, HVAC systems',
-            context: 'Article 5.1: Owner responsibilities include structural repairs, complete roof maintenance and replacement, all HVAC systems servicing and repair, and major plumbing infrastructure.'
-          },
-          {
-            page: 23,
-            segment: 'Standard commercial property allocation per state law',
-            context: 'Legal Framework: Standard commercial property allocation per state law §45.2(b) requires owner to retain responsibility for major systems and structural elements while tenant handles day-to-day maintenance.'
-          }
-        ],
-        previewSections: ['Maintenance'],
-      },
-      {
-        id: '2',
-        title: 'Triple Net (NNN) Lease Structure',
-        summary: 'Tenant assumes responsibility for most operational costs in NNN lease arrangement',
-        citation: 'Source: Commercial Real Estate Law §18.5, NNN Lease Standards',
-        fieldMappings: {
-          responsibleParty: 'Tenant',
-          maintenanceOwnerResponsibility: 'Structural integrity and major capital improvements only',
-          maintenanceReasoning: 'Triple net lease structure - tenant responsible for most operational costs. This agreement follows a triple net (NNN) lease structure where tenant assumes responsibility for property taxes, insurance, and maintenance costs in addition to base rent. Owner maintains structural integrity only.',
-        },
-        pdfReferences: [
-          {
-            page: 8,
-            segment: 'Tenant',
-            context: 'Section 2.1: Under this Triple Net (NNN) lease structure, the Tenant assumes comprehensive responsibility for property operations and maintenance.'
-          },
-          {
-            page: 9,
-            segment: 'Structural integrity and major capital improvements only',
-            context: 'Section 2.3: Owner responsibilities are limited to structural integrity and major capital improvements exceeding $10,000.'
-          },
-          {
-            page: 11,
-            segment: 'Triple net lease structure',
-            context: 'Article 4: This agreement follows a triple net (NNN) lease structure where tenant assumes responsibility for property taxes, insurance, and maintenance costs in addition to base rent.'
-          }
-        ],
-        previewSections: ['Maintenance', 'Billing'],
-      },
-      {
-        id: '3',
-        title: 'Shared Responsibility - Modified Gross Lease',
-        summary: 'Balanced maintenance split with negotiated cost thresholds',
-        citation: 'Source: Modified Gross Lease Framework, Industry Standard MGF-2024',
-        fieldMappings: {
-          responsibleParty: 'Shared Responsibility',
-          maintenanceOwnerResponsibility: 'Building systems, life safety equipment, and code compliance. Structural elements and major repairs over $2,500.',
-          maintenanceReasoning: 'Modified gross lease structure with negotiated maintenance responsibilities. Owner covers major repairs over $2,500, structural elements, and building systems. Tenant handles routine maintenance, minor repairs, and interior upkeep.',
-        },
-        pdfReferences: [
-          {
-            page: 5,
-            segment: 'Shared Responsibility',
-            context: 'Section 1.5: This Modified Gross Lease establishes a Shared Responsibility framework for property maintenance and operational costs.'
-          },
-          {
-            page: 7,
-            segment: 'Building systems, life safety equipment',
-            context: 'Section 3.1: Owner shall maintain all building systems, life safety equipment, and ensure code compliance for all structural elements.'
-          },
-          {
-            page: 10,
-            segment: 'major repairs over $2,500',
-            context: 'Article 6.2: Cost threshold structure: Owner covers major repairs over $2,500, structural elements, and building systems. Tenant handles routine maintenance, minor repairs under $2,500, and interior upkeep.'
-          }
-        ],
-        previewSections: ['Maintenance'],
-      },
-    ],
-  };
-
-  const categoryResponses = responses[category] || [];
-  const searchLower = query.toLowerCase();
-
-  return categoryResponses.filter(
-    (response) =>
-      (response.title?.toLowerCase().includes(searchLower)) ||
-      (response.summary?.toLowerCase().includes(searchLower)) ||
-      (response.fullDetails?.toLowerCase().includes(searchLower))
-  );
-};
 
 export function CategorySection({
   category,
   title,
-  fields,
   formData,
   onFieldChange,
   aiMode = false,
@@ -302,7 +196,7 @@ export function CategorySection({
           {/* Autocomplete suggestions dropdown */}
           {hasSuggestions && (
             <div 
-              ref={(el) => suggestionRefs.current[fieldId] = el}
+              ref={(el) => { suggestionRefs.current[fieldId] = el; }}
               className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto"
             >
               {fieldSuggestions.map((response) => (
@@ -427,13 +321,7 @@ export function CategorySection({
                 </div>
               )}
               {/* Snippet Count - Show when not analyzing and snippets are available */}
-              {category === 'maintenance' && aiMode && !isAnalyzing && snippetsCount > 0 && (
-                <div className="animate-in fade-in slide-in-from-right duration-300">
-                  <span className="text-sm font-medium text-red-600">
-                    {snippetsCount} {snippetsCount === 1 ? 'snippet' : 'snippets'} fetched
-                  </span>
-                </div>
-              )}
+              {category === 'maintenance' && aiMode && !isAnalyzing && snippetsCount > 0 }
               {/* AI Fill Toggle - Show in maintenance section */}
               {category === 'maintenance' && onToggleAiMode && (
                 <div className="flex items-center gap-3 animate-in fade-in slide-in-from-right duration-300">

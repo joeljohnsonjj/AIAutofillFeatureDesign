@@ -1,11 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { Check, X, Eye, FileText, RotateCcw } from 'lucide-react';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from './ui/tooltip';
+import { Check, X, Eye, FileText } from 'lucide-react';
 import { PDFSnippetViewer } from './PDFSnippetViewer';
 import { AIAnalyzingAnimation } from './AIAnalyzingAnimation';
 
@@ -90,81 +84,12 @@ export function SnippetList({
   if (snippets.length === 0) return null;
 
   // Function to render text with highlights
-  const renderHighlightedText = (text: string, highlights?: Highlight[], firstHighlightRef?: React.RefObject<HTMLSpanElement>) => {
-    if (!highlights || highlights.length === 0) {
-      return <span>{text}</span>;
-    }
-
-    let lastIndex = 0;
-    const parts: React.ReactElement[] = [];
-    let isFirstHighlight = true;
-
-    // Sort highlights by their position in the text
-    const sortedHighlights = [...highlights].sort((a, b) => {
-      return text.indexOf(a.text) - text.indexOf(b.text);
-    });
-
-    sortedHighlights.forEach((highlight, idx) => {
-      const highlightIndex = text.indexOf(highlight.text, lastIndex);
-      
-      if (highlightIndex === -1) return;
-
-      // Add text before highlight
-      if (highlightIndex > lastIndex) {
-        parts.push(
-          <span key={`text-${idx}`}>
-            {text.substring(lastIndex, highlightIndex)}
-          </span>
-        );
-      }
-
-      // Add highlighted text with tooltip
-      // Attach ref to first highlight for auto-scrolling
-      const highlightElement = (
-        <TooltipProvider key={`highlight-${idx}`}>
-          <Tooltip delayDuration={200}>
-            <TooltipTrigger asChild>
-              <mark 
-                ref={isFirstHighlight && firstHighlightRef ? firstHighlightRef : undefined}
-                className={`${highlight.color} px-0.5 cursor-help transition-all hover:ring-2 hover:ring-purple-400 hover:ring-offset-1 rounded-sm`}
-              >
-                {highlight.text}
-              </mark>
-            </TooltipTrigger>
-            <TooltipContent side="top" className="bg-gray-900 text-white px-3 py-2">
-              <p className="text-xs">Maps to: <span className="font-semibold">{highlight.field}</span></p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      );
-      
-      parts.push(highlightElement);
-      if (isFirstHighlight) isFirstHighlight = false;
-
-      lastIndex = highlightIndex + highlight.text.length;
-    });
-
-    // Add remaining text
-    if (lastIndex < text.length) {
-      parts.push(
-        <span key="text-end">{text.substring(lastIndex)}</span>
-      );
-    }
-
-    return <>{parts}</>;
-  };
 
   // Component for individual scrollable snippet with flip card
   const ScrollableSnippet = ({ snippet, index }: { snippet: Snippet; index: number }) => {
     const [isFlipped, setIsFlipped] = useState(false);
     const scrollToPageRef = useRef<((page: number) => void) | null>(null);
 
-    const handleEyeHover = () => {
-      // Preview snippet (show ghost text) when hovering over eye icon
-      if (onPreview) {
-        onPreview(snippet);
-      }
-    };
 
     const handleCardClick = (e: React.MouseEvent) => {
       // Don't flip if clicking on buttons or interactive elements
@@ -210,16 +135,6 @@ export function SnippetList({
                       This snippet will fill the following fields:
                     </p>
                   </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setIsFlipped(true);
-                    }}
-                    className="text-xs text-red-600 hover:text-red-700 underline flex-shrink-0 font-medium"
-                    title="View PDF reference"
-                  >
-                    View Reference
-                  </button>
                 </div>
 
                 {/* Field Mappings Display */}
@@ -302,20 +217,8 @@ export function SnippetList({
                 transform: 'rotateY(180deg)',
               }}
             >
-              {/* Header with Back Button and References */}
+              {/* Header with References */}
               <div className="px-4 pt-4 pb-2 flex items-center justify-between gap-3">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setIsFlipped(false);
-                  }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md hover:bg-red-50 text-red-700 transition-colors border border-red-300"
-                  title="Back to summary"
-                >
-                  <RotateCcw className="w-4 h-4" />
-                  <span className="text-xs font-medium">Back to Summary</span>
-                </button>
-                
                 {/* Reference Tags - show if there are multiple pages */}
                 {snippet.pdfReference.pageReferences && snippet.pdfReference.pageReferences.length > 0 && (
                   <div className="flex items-center gap-2 flex-wrap">
@@ -363,7 +266,7 @@ export function SnippetList({
                         pageNumber={snippet.pdfReference.page}
                         title={snippet.title}
                         pageReferences={snippet.pdfReference.pageReferences}
-                        onPageClick={(page) => {
+                        onPageClick={() => {
                           // Scroll to page is handled internally by PDFSnippetViewer
                         }}
                         onScrollToPageReady={(scrollFn) => {
@@ -431,7 +334,7 @@ export function SnippetList({
                 {searchQuery ? `Results for "${searchQuery}"` : 'AI Auto Fill'}
               </span>
               <span className="bg-white/20 text-red-600 text-xs px-2 py-1 rounded font-semibold">
-                {snippets.length} {snippets.length === 1 ? 'snippet' : 'snippets'} found
+                {snippets.length} {snippets.length === 1 ? 'snippet' : 'snippets'} fetched
               </span>
             </>
           )}

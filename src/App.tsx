@@ -3,7 +3,6 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { AgreementForm } from './components/AgreementForm';
 import { DocumentViewer } from './components/DocumentViewer';
 import { SnippetList } from './components/SnippetList';
-import { AIFillHelp } from './components/AIFillHelp';
 import type { Document } from './components/DocumentSelector';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from './components/ui/resizable';
 import { AIAnalyzingAnimation } from './components/AIAnalyzingAnimation';
@@ -1686,9 +1685,6 @@ export default function App() {
           />
         </main>
       )}
-      
-      {/* AI Fill Help Button */}
-      {aiMode && <AIFillHelp />}
     </div>
   );
 }
