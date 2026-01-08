@@ -35,7 +35,7 @@ interface Snippet {
 
 interface SnippetListProps {
   snippets: Snippet[];
-  onApply: (snippet: Snippet) => void;
+  onApply: (snippet: Snippet, keepSnippetsVisible?: boolean) => void;
   onPreview?: (snippet: Snippet) => void;
   onClose: () => void;
   searchQuery?: string;
@@ -179,7 +179,7 @@ export function SnippetList({
               <div className="px-4 pb-4" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center justify-center">
                   <button
-                    onClick={() => onApply(snippet)}
+                    onClick={() => onApply(snippet, false)}
                     className="px-6 py-2.5 border border-red-300 rounded-lg hover:bg-red-50 hover:border-red-400 transition-colors flex items-center justify-center gap-2 text-red-700"
                   >
                     <Check className="w-4 h-4" />
@@ -267,7 +267,7 @@ export function SnippetList({
               <div className="px-4 pb-4" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center justify-center">
                   <button
-                    onClick={() => onApply(snippet)}
+                    onClick={() => onApply(snippet, false)}
                     className="px-6 py-2.5 border border-red-300 rounded-lg hover:bg-red-50 hover:border-red-400 transition-colors flex items-center justify-center gap-2 text-red-700"
                   >
                     <Check className="w-4 h-4" />

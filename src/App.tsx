@@ -936,9 +936,8 @@ export default function App() {
       checkedDocumentsRef.current = documentsToCheck;
       
       setGhostValues({});
-      // Reset AI approval state when turning off AI mode
-      setIsAIApproved(false);
-      setAiApprovedFormData({});
+      // Note: We intentionally DO NOT reset isAIApproved and aiApprovedFormData here
+      // This ensures the "Approve AI Changes" button remains visible even when AI mode is off
     }
     
     // When toggling ON AI mode, check if documents are selected first
@@ -1060,7 +1059,8 @@ export default function App() {
       }
     }
 
-    // When toggling OFF AI mode, convert all ghost values to actual values and reset approval state
+    // When toggling OFF AI mode, convert all ghost values to actual values
+    // DO NOT reset approval state - it should persist so "Approve AI Changes" button remains visible
     if (!newMode && aiMode) {
       setFormData(prev => {
         const updated = { ...prev };
@@ -1073,9 +1073,8 @@ export default function App() {
         return updated;
       });
       setGhostValues({});
-      // Reset AI approval state when turning off AI mode
-      setIsAIApproved(false);
-      setAiApprovedFormData({});
+      // Note: We intentionally DO NOT reset isAIApproved and aiApprovedFormData here
+      // This ensures the "Approve AI Changes" button remains visible even when AI mode is off
     }
     setAiMode(newMode);
     
@@ -1441,6 +1440,11 @@ export default function App() {
       return newApplied;
     });
     
+    // Reset AI approval state when a new snippet is applied
+    // This ensures "Approve AI Changes" button appears again
+    setIsAIApproved(false);
+    setAiApprovedFormData({});
+    
     // Only clear snippets if not keeping them visible (for auto-prefill)
     // When accept button is clicked, turn off AI mode
     if (!keepSnippetsVisible) {
@@ -1610,10 +1614,14 @@ export default function App() {
             onToggleAiMode={handleToggleAiMode}
             onSaveDraft={handleSaveDraft}
             onFinish={handleFinish}
+            onApproveAIChanges={handleApproveAIChanges}
+            isAIApproved={isAIApproved}
+            hasAIChanges={hasAIChanges}
             isEditing={isEditing}
             onCancel={handleBack}
             documents={DOCUMENTS.map(doc => ({ id: doc.id, name: doc.name }))}
             checkedDocuments={Array.from(checkedDocuments)}
+            hasAIGeneratedFields={aiGeneratedFieldsMap}
             onDocumentCheckChange={handleDocumentCheckChange}
           />
         </main>
