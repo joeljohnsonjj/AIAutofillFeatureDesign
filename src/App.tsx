@@ -1453,7 +1453,7 @@ export default function App() {
     setAiApprovedFormData({ ...approvedData }); // Store snapshot for comparison
   };
 
-  const handleApplySnippet = (snippet: any, keepSnippetsVisible: boolean = false) => {
+  const handleApplySnippet = (snippet: any, keepSnippetsVisible: boolean = true) => {
     // Apply snippet to form fields (including all three fields)
     // Always apply to all three maintenance fields, even if they have existing text
     // This is used for auto-fill when AI toggle is first clicked
