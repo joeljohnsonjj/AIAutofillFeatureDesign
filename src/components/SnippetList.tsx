@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { Check, X, Eye, FileText } from 'lucide-react';
+import { Check, X, Eye, FileText, ChevronLeft, ChevronRight } from 'lucide-react';
 import { PDFSnippetViewer } from './PDFSnippetViewer';
 import { AIAnalyzingAnimation } from './AIAnalyzingAnimation';
 
@@ -51,37 +51,24 @@ export function SnippetList({
   isAnalyzing = false,
 }: SnippetListProps) {
   const snippetsContainerRef = useRef<HTMLDivElement>(null);
+  const [currentIndex, setCurrentIndex] = useState(0);
 
-  // Keep container scrolled to top when snippets are loaded or changed
+  // Reset to first snippet when snippets change
   useEffect(() => {
-    if (snippetsContainerRef.current) {
-      // Reset scroll position to top immediately when snippets are set/changed
-      // Use multiple attempts to ensure it sticks
-      const resetScroll = () => {
-        if (snippetsContainerRef.current) {
-          snippetsContainerRef.current.scrollTop = 0;
-        }
-      };
-      
-      // Immediate reset
-      resetScroll();
-      
-      // Reset after a short delay to catch any delayed scrolls
-      setTimeout(resetScroll, 0);
-      setTimeout(resetScroll, 50);
-      setTimeout(resetScroll, 100);
-      setTimeout(resetScroll, 200);
-    }
+    setCurrentIndex(0);
   }, [snippets]);
 
-  // Also prevent any scroll behavior on mount
-  useEffect(() => {
-    if (snippetsContainerRef.current) {
-      snippetsContainerRef.current.scrollTop = 0;
-    }
-  }, []);
-
   if (snippets.length === 0) return null;
+
+  const handleNext = () => {
+    setCurrentIndex((prev) => (prev + 1) % snippets.length);
+  };
+
+  const handlePrevious = () => {
+    setCurrentIndex((prev) => (prev - 1 + snippets.length) % snippets.length);
+  };
+
+  const currentSnippet = snippets[currentIndex];
 
   // Function to render text with highlights
 
@@ -325,17 +312,42 @@ export function SnippetList({
     <div className="h-full flex flex-col bg-gray-50 animate-in fade-in slide-in-from-left-4 duration-300">
       {/* Header */}
       <div className="bg-gradient-to-r from-blue-600 to-teal-600 px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3 flex-1">
           {isAnalyzing ? (
             <AIAnalyzingAnimation message="Analyzing documents..." size="sm" />
           ) : (
             <>
-              <span className="text-black font-medium">
-                {searchQuery ? `Results for "${searchQuery}"` : 'AI Auto Fill'}
-              </span>
-              <span className="bg-white/20 text-red-600 text-xs px-2 py-1 rounded font-semibold">
-                {snippets.length} {snippets.length === 1 ? 'snippet' : 'snippets'} fetched
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-black font-medium">
+                  {searchQuery ? `Results for "${searchQuery}"` : 'AI Auto Fill'}
+                </span>
+                <span className="bg-white/20 text-red-600 text-xs px-2 py-1 rounded font-semibold">
+                  {snippets.length} {snippets.length === 1 ? 'snippet' : 'snippets'} fetched
+                </span>
+              </div>
+              
+              {/* Navigation Controls */}
+              {snippets.length > 1 && (
+                <div className="flex items-center ml-auto gap-2 mr-2">
+                  <button
+                    onClick={handlePrevious}
+                    className="text-black hover:bg-white/20 rounded p-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Previous snippet"
+                  >
+                    <ChevronLeft className="w-5 h-5" />
+                  </button>
+                  <span className="text-black text-sm font-medium px-2">
+                    {currentIndex + 1} / {snippets.length}
+                  </span>
+                  <button
+                    onClick={handleNext}
+                    className="text-black hover:bg-white/20 rounded p-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Next snippet"
+                  >
+                    <ChevronRight className="w-5 h-5" />
+                  </button>
+                </div>
+              )}
             </>
           )}
         </div>
@@ -347,15 +359,13 @@ export function SnippetList({
         </button>
       </div>
 
-      {/* Snippet List - Scrollable, shows 2 at a time */}
+      {/* Snippet Carousel - Shows one snippet at a time */}
       <div 
         ref={snippetsContainerRef}
-        className="flex-1 overflow-y-auto p-4 space-y-4" 
+        className="flex-1 overflow-y-auto p-4" 
         style={{ maxHeight: 'calc(100vh - 250px)' }}
       >
-        {snippets.map((snippet, index) => (
-          <ScrollableSnippet key={snippet.id} snippet={snippet} index={index} />
-        ))}
+        <ScrollableSnippet key={currentSnippet.id} snippet={currentSnippet} index={0} />
       </div>
     </div>
   );

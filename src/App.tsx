@@ -1535,8 +1535,38 @@ export default function App() {
           {/* Split Pane Layout */}
           <main className="h-[calc(100vh-180px)]">
             <ResizablePanelGroup direction="horizontal">
-              {/* Left Pane - Document Viewer or Snippet List */}
-              <ResizablePanel defaultSize={60} minSize={40}>
+              {/* Left Pane - Form Panel */}
+              <ResizablePanel defaultSize={55} minSize={30}>
+                <div className="h-full overflow-y-auto bg-white">
+                  <AgreementForm
+                    formData={formData}
+                    onFieldChange={handleFieldChange}
+                    aiMode={aiMode}
+                    ghostValues={ghostValues}
+                    onAcceptGhost={handleAcceptGhost}
+                    onFieldSearch={handleFieldSearch}
+                    onToggleAiMode={handleToggleAiMode}
+                    isAnalyzing={isAnalyzing}
+                    snippetsCount={snippets.length}
+                    onSaveDraft={handleSaveDraft}
+                    onFinish={handleFinish}
+                    onApproveAIChanges={handleApproveAIChanges}
+                    isAIApproved={isAIApproved}
+                    hasAIChanges={hasAIChanges}
+                    isEditing={isEditing}
+                    onCancel={handleBack}
+                    documents={DOCUMENTS.map(doc => ({ id: doc.id, name: doc.name }))}
+                    checkedDocuments={Array.from(checkedDocuments)}
+                    hasAIGeneratedFields={aiGeneratedFieldsMap}
+                    onDocumentCheckChange={handleDocumentCheckChange}
+                  />
+                </div>
+              </ResizablePanel>
+
+              <ResizableHandle />
+
+              {/* Right Pane - Document Viewer or Snippet List */}
+              <ResizablePanel defaultSize={45} minSize={30}>
                 {snippets.length > 0 ? (
                   <SnippetList
                     snippets={snippets}
@@ -1564,36 +1594,6 @@ export default function App() {
                     highlightedSection={highlightedSection} 
                   />
                 )}
-              </ResizablePanel>
-
-              <ResizableHandle />
-
-              {/* Right Pane - Form Panel */}
-              <ResizablePanel defaultSize={40} minSize={30}>
-                <div className="h-full overflow-y-auto bg-white">
-                  <AgreementForm
-                    formData={formData}
-                    onFieldChange={handleFieldChange}
-                    aiMode={aiMode}
-                    ghostValues={ghostValues}
-                    onAcceptGhost={handleAcceptGhost}
-                    onFieldSearch={handleFieldSearch}
-                    onToggleAiMode={handleToggleAiMode}
-                    isAnalyzing={isAnalyzing}
-                    snippetsCount={snippets.length}
-                    onSaveDraft={handleSaveDraft}
-                    onFinish={handleFinish}
-                    onApproveAIChanges={handleApproveAIChanges}
-                    isAIApproved={isAIApproved}
-                    hasAIChanges={hasAIChanges}
-                    isEditing={isEditing}
-                    onCancel={handleBack}
-                    documents={DOCUMENTS.map(doc => ({ id: doc.id, name: doc.name }))}
-                    checkedDocuments={Array.from(checkedDocuments)}
-                    hasAIGeneratedFields={aiGeneratedFieldsMap}
-                    onDocumentCheckChange={handleDocumentCheckChange}
-                  />
-                </div>
               </ResizablePanel>
             </ResizablePanelGroup>
           </main>
