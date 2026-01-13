@@ -353,6 +353,9 @@ export default function App() {
   const [isAIApproved, setIsAIApproved] = useState(false);
   const [aiApprovedFormData, setAiApprovedFormData] = useState<Record<string, string>>({});
   
+  // Track if AI snippet has been accepted (for enabling Finish button)
+  const [hasAcceptedAISnippet, setHasAcceptedAISnippet] = useState(false);
+  
   // Track checked documents (PDFs referenced by AI)
   const [checkedDocuments, setCheckedDocuments] = useState<Set<string>>(new Set());
   const checkedDocumentsRef = useRef<Set<string>>(new Set());
@@ -1140,12 +1143,71 @@ export default function App() {
   const handleAcceptGhost = (fieldId: string) => {
     const ghostValue = ghostValues[fieldId];
     if (ghostValue) {
-      setFormData(prev => ({ ...prev, [fieldId]: ghostValue }));
-      setGhostValues(prev => {
+      // Convert ALL ghost values to permanent values (accept all at once)
+      setFormData(prev => {
         const updated = { ...prev };
-        delete updated[fieldId];
+        // Accept all ghost values, not just the current field
+        Object.entries(ghostValues).forEach(([gFieldId, gValue]) => {
+          updated[gFieldId] = gValue;
+        });
         return updated;
       });
+      
+      // Clear all ghost values
+      setGhostValues({});
+      
+      // Enable Finish button
+      setHasAcceptedAISnippet(true);
+      
+      // Turn off AI mode (collapse split screen)
+      setAiMode(false);
+      
+      // Clear snippets
+      setSnippets([]);
+      setGlobalSearchQuery('');
+      setHighlightedSection(null);
+      
+      // Scroll to maintenance section when ghost text is edited (same as Accept button)
+      // Use multiple attempts to ensure scroll works after DOM updates
+      const scrollToMaintenance = () => {
+        const maintenanceSection = document.querySelector('[data-section="maintenance"]');
+        if (maintenanceSection) {
+          // Try to find scrollable container (works in split screen mode)
+          const formContainer = maintenanceSection.closest('.overflow-y-auto');
+          if (formContainer) {
+            // Calculate position relative to the scrollable container
+            const containerRect = formContainer.getBoundingClientRect();
+            const sectionRect = maintenanceSection.getBoundingClientRect();
+            const scrollTop = formContainer.scrollTop;
+            const relativeTop = sectionRect.top - containerRect.top + scrollTop;
+            
+            formContainer.scrollTo({
+              top: relativeTop - 20, // 20px offset from top
+              behavior: 'smooth',
+            });
+            return true;
+          } else {
+            // Fallback: scroll the window (works when split screen has collapsed)
+            const elementTop = maintenanceSection.getBoundingClientRect().top + window.pageYOffset;
+            window.scrollTo({
+              top: elementTop - 100, // 100px offset from top of window
+              behavior: 'smooth',
+            });
+            return true;
+          }
+        }
+        return false;
+      };
+      
+      // Try scrolling after delay to ensure split screen has collapsed and DOM is updated
+      setTimeout(() => {
+        scrollToMaintenance();
+      }, 500);
+      
+      // Retry after additional delay to handle any async DOM updates
+      setTimeout(() => {
+        scrollToMaintenance();
+      }, 800);
     }
   };
 
@@ -1261,6 +1323,12 @@ export default function App() {
     
     // Set all ghost values at once (this will show even if fields have existing text)
     setGhostValues(newGhostValues);
+    
+    // When ghost values are shown (new snippet being previewed), disable Finish button
+    // This ensures user must accept the new snippet before finishing
+    if (Object.keys(newGhostValues).length > 0) {
+      setHasAcceptedAISnippet(false);
+    }
   };
 
   const handleBack = () => {
@@ -1394,23 +1462,6 @@ export default function App() {
     }
   };
 
-  const handleApproveAIChanges = () => {
-    // Approve AI changes - convert ghost values to actual values and mark as approved
-    const approvedData = { ...formData };
-    
-    // Accept all ghost values
-    Object.entries(ghostValues).forEach(([fieldId, ghostValue]) => {
-      if (!approvedData[fieldId] || approvedData[fieldId].trim().length === 0) {
-        approvedData[fieldId] = ghostValue;
-      }
-    });
-    
-    setFormData(approvedData);
-    setGhostValues({});
-    setIsAIApproved(true);
-    setAiApprovedFormData({ ...approvedData }); // Store snapshot for comparison
-  };
-
   const handleApplySnippet = (snippet: any, keepSnippetsVisible: boolean = true) => {
     // Apply snippet to form fields (including all three fields)
     // Always apply to all three maintenance fields, even if they have existing text
@@ -1480,6 +1531,7 @@ export default function App() {
       setGlobalSearchQuery('');
       setGhostValues({}); // Clear ghost values
       setAiMode(false); // Turn off AI mode
+      setHasAcceptedAISnippet(true); // Mark that AI snippet has been accepted - enables Finish button
       // Do not navigate - user stays on the form page
       
       // Scroll to maintenance section when accept button is clicked
@@ -1612,7 +1664,6 @@ export default function App() {
                     snippetsCount={snippets.length}
                     onSaveDraft={handleSaveDraft}
                     onFinish={handleFinish}
-                    onApproveAIChanges={handleApproveAIChanges}
                     isAIApproved={isAIApproved}
                     hasAIChanges={hasAIChanges}
                     isEditing={isEditing}
@@ -1621,6 +1672,7 @@ export default function App() {
                     checkedDocuments={Array.from(checkedDocuments)}
                     hasAIGeneratedFields={aiGeneratedFieldsMap}
                     onDocumentCheckChange={handleDocumentCheckChange}
+                    hasAcceptedAISnippet={hasAcceptedAISnippet}
                   />
                 </div>
               </ResizablePanel>
@@ -1670,7 +1722,6 @@ export default function App() {
             onToggleAiMode={handleToggleAiMode}
             onSaveDraft={handleSaveDraft}
             onFinish={handleFinish}
-            onApproveAIChanges={handleApproveAIChanges}
             isAIApproved={isAIApproved}
             hasAIChanges={hasAIChanges}
             isEditing={isEditing}
@@ -1679,6 +1730,7 @@ export default function App() {
             checkedDocuments={Array.from(checkedDocuments)}
             hasAIGeneratedFields={aiGeneratedFieldsMap}
             onDocumentCheckChange={handleDocumentCheckChange}
+            hasAcceptedAISnippet={hasAcceptedAISnippet}
           />
         </main>
       )}

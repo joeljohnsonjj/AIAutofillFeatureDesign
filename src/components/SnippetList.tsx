@@ -66,7 +66,7 @@ export function SnippetList({
     
     // Cleanup: clear preview when component unmounts or snippet changes
     return () => {
-      if (onPreview) {
+      if (onPreview && currentSnippet) {
         onPreview({ ...currentSnippet, fieldMappings: {} } as any);
       }
     };
@@ -111,9 +111,9 @@ export function SnippetList({
         onClick={handleCardClick}
       >
         {/* Card Container with Flip Effect */}
-        <div className="relative" style={{ perspective: '1000px', minHeight: '400px' }}>
+        <div className="relative" style={{ perspective: '1000px', height: '400px' }}>
           <div
-            className="relative w-full transition-transform duration-500"
+            className="relative w-full h-full transition-transform duration-500"
             style={{
               transformStyle: 'preserve-3d',
               transform: isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
@@ -121,85 +121,90 @@ export function SnippetList({
           >
             {/* Front Side - AI Summary */}
             <div
-              className="w-full"
+              className="w-full h-full"
               style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' }}
             >
               {/* AI Summary Content */}
-              <div className="p-4">
-                <div className="mb-3 flex items-center justify-between">
-                  <div>
-                    <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                      <FileText className="w-4 h-4 text-blue-600" />
-                      AI Summary
-                    </h4>
-                    <p className="text-xs text-gray-500 mb-4">
-                      This snippet will fill the following fields:
-                    </p>
+              <div className="flex flex-col h-full">
+                {/* Header - Fixed */}
+                <div className="p-4 pb-2 flex-shrink-0">
+                  <div className="mb-3 flex items-center justify-between">
+                    <div>
+                      <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                        <FileText className="w-4 h-4 text-blue-600" />
+                        AI Summary
+                      </h4>
+                      <p className="text-xs text-gray-500">
+                        This snippet will fill the following fields:
+                      </p>
+                    </div>
                   </div>
                 </div>
 
-                {/* Field Mappings Display */}
-                <div className="space-y-3">
-                  {Object.entries(snippet.fieldMappings).map(([fieldId, value]) => {
-                    // Find the matched field name
-                    const fieldName = snippet.matchedFields.find(f => 
-                      f.toLowerCase().replace(/\s+/g, '') === fieldId.toLowerCase().replace(/\s+/g, '')
-                    ) || fieldId;
-                    
-                    return (
-                      <div key={fieldId} className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-                        <div className="flex items-start gap-2">
-                          <div className="flex-shrink-0 mt-0.5">
-                            <div className="w-2 h-2 rounded-full bg-red-500"></div>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-semibold text-gray-700 mb-1">
-                              {fieldName}
-                            </p>
-                            <p className="text-sm text-gray-900 leading-relaxed">
-                              {value as string}
-                            </p>
+                {/* Field Mappings Display - Scrollable */}
+                <div className="flex-1 overflow-y-auto px-4" style={{ maxHeight: '250px' }}>
+                  <div className="space-y-3 py-2">
+                    {Object.entries(snippet.fieldMappings).map(([fieldId, value]) => {
+                      // Find the matched field name
+                      const fieldName = snippet.matchedFields.find(f => 
+                        f.toLowerCase().replace(/\s+/g, '') === fieldId.toLowerCase().replace(/\s+/g, '')
+                      ) || fieldId;
+                      
+                      return (
+                        <div key={fieldId} className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                          <div className="flex items-start gap-2">
+                            <div className="flex-shrink-0 mt-0.5">
+                              <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-semibold text-gray-700 mb-1">
+                                {fieldName}
+                              </p>
+                              <p className="text-sm text-gray-900 leading-relaxed">
+                                {value as string}
+                              </p>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
 
-                {/* Click to view reference hint */}
-                <div className="mt-4 pt-3 border-t border-gray-200">
+                {/* Click to view reference hint - Fixed */}
+                <div className="px-4 pt-3 pb-2 border-t border-gray-200 flex-shrink-0">
                   <p className="text-xs text-gray-500 text-center flex items-center justify-center gap-1">
                     <FileText className="w-3 h-3 text-red-500" />
                     Click card to view PDF reference
                   </p>
                 </div>
-              </div>
 
-              {/* Accept Button */}
-              <div className="px-4 pb-4" onClick={(e) => e.stopPropagation()}>
-                <div className="flex items-center justify-center">
-                  <button
-                    onClick={() => onApply(snippet, false)}
-                    className="px-6 py-2.5 border border-red-300 rounded-lg hover:bg-red-50 hover:border-red-400 transition-colors flex items-center justify-center gap-2 text-red-700"
-                  >
-                    <Check className="w-4 h-4" />
-                    <span className="text-sm font-medium">Accept</span>
-                  </button>
+                {/* Accept Button - Fixed */}
+                <div className="px-4 py-4 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex items-center justify-center">
+                    <button
+                      onClick={() => onApply(snippet, false)}
+                      className="px-6 py-2.5 border border-red-300 rounded-lg hover:bg-red-50 hover:border-red-400 transition-colors flex items-center justify-center gap-2 text-red-700"
+                    >
+                      <Check className="w-4 h-4" />
+                      <span className="text-sm font-medium">Accept</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
 
             {/* Back Side - PDF Snippet */}
             <div
-              className="absolute inset-0 w-full"
+              className="absolute inset-0 w-full h-full flex flex-col"
               style={{
                 backfaceVisibility: 'hidden',
                 WebkitBackfaceVisibility: 'hidden',
                 transform: 'rotateY(180deg)',
               }}
             >
-              {/* Header with References */}
-              <div className="px-4 pt-4 pb-2 flex items-center justify-between gap-3">
+              {/* Header with References - Fixed */}
+              <div className="px-4 pt-4 pb-2 flex items-center justify-between gap-3 flex-shrink-0">
                 {/* Reference Tags - show if there are multiple pages */}
                 {snippet.pdfReference.pageReferences && snippet.pdfReference.pageReferences.length > 0 && (
                   <div className="flex items-center gap-2 flex-wrap">
@@ -236,7 +241,7 @@ export function SnippetList({
               </div>
 
               {/* PDF-like Content - Scrollable */}
-              <div className="p-4">
+              <div className="flex-1 overflow-y-auto px-4">
                 <div className="bg-white border border-gray-300 shadow-inner rounded overflow-hidden">
                   {/* Scrollable PDF container - full document view */}
                   <div className="bg-gray-100 p-2">
@@ -263,8 +268,8 @@ export function SnippetList({
                 </div>
               </div>
 
-              {/* Accept Button */}
-              <div className="px-4 pb-4" onClick={(e) => e.stopPropagation()}>
+              {/* Accept Button - Fixed */}
+              <div className="px-4 py-4 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center justify-center">
                   <button
                     onClick={() => onApply(snippet, false)}
@@ -336,10 +341,12 @@ export function SnippetList({
       {/* Snippet Carousel - Shows one snippet at a time */}
       <div 
         ref={snippetsContainerRef}
-        className="flex-1 overflow-y-auto p-4" 
+        className="flex-1 overflow-y-auto p-3" 
         style={{ maxHeight: 'calc(100vh - 250px)' }}
       >
-        <ScrollableSnippet key={currentSnippet.id} snippet={currentSnippet} index={0} />
+        {currentSnippet && (
+          <ScrollableSnippet key={currentSnippet.id} snippet={currentSnippet} index={0} />
+        )}
       </div>
     </div>
   );

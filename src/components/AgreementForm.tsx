@@ -26,6 +26,7 @@ interface AgreementFormProps {
   checkedDocuments?: string[];
   onDocumentCheckChange?: (documentId: string, checked: boolean) => void;
   hasAIGeneratedFields?: Record<string, boolean>;
+  hasAcceptedAISnippet?: boolean; // Track if AI snippet has been accepted
 }
 
 export function AgreementForm({ 
@@ -49,11 +50,13 @@ export function AgreementForm({
   checkedDocuments = [],
   onDocumentCheckChange,
   hasAIGeneratedFields = {},
+  hasAcceptedAISnippet = false,
 }: AgreementFormProps) {
   // Determine if Finish button should be enabled
-  // When there are AI-generated fields: Finish is disabled until AI changes are approved
-  // When no AI fields: Finish behaves normally
-  const isFinishEnabled = hasAIChanges ? isAIApproved : true;
+  // When AI mode is ON with ghost values: Finish is disabled until user accepts the snippet
+  // When AI mode is OFF or no ghost values: Finish is enabled
+  const hasGhostValues = Object.keys(ghostValues).length > 0;
+  const isFinishEnabled = aiMode && hasGhostValues ? hasAcceptedAISnippet : true;
 
   return (
     <div className="bg-white rounded-lg shadow-sm">
@@ -152,23 +155,15 @@ export function AgreementForm({
               Save as Draft
             </button>
           )}
-          {/* AI Approval Button - Always show when there are AI-generated fields that need approval */}
-          {hasAIChanges && !isAIApproved && onApproveAIChanges && (
-            <button
-              onClick={onApproveAIChanges}
-              className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
-            >
-              Approve AI Changes
-            </button>
-          )}
           <button 
             onClick={onFinish}
             disabled={!isFinishEnabled}
-            className={`px-6 py-2 rounded-md ${
+            className={`px-6 py-2 rounded-md transition-colors ${
               isFinishEnabled
                 ? 'bg-blue-600 text-white hover:bg-blue-700'
                 : 'bg-gray-300 text-gray-500 cursor-not-allowed'
             }`}
+            title={!isFinishEnabled ? 'Please accept the AI suggestion before finishing' : ''}
           >
             Finish
           </button>
