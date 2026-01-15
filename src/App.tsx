@@ -243,6 +243,73 @@ const SNIPPET_DATABASE = [
     },
     matchedFields: ['Responsible Party', 'Maintenance Owner Responsibility', 'Legal Notes'],
     status: 'deleted', // Document was removed
+  },
+  {
+    id: '6',
+    documentId: 'doc-1', // Primary document
+    title: 'Multi-Document Cross-Reference - Insurance Requirements',
+    pdfReference: {
+      page: 7,
+      segment: 'Insurance requirements',
+      fullText: 'ARTICLE II - INSURANCE AND LIABILITY\n\nSection 2.1: Insurance Requirements\nBoth parties shall maintain adequate insurance coverage as detailed in the Insurance Schedule attached as Exhibit A. The Property Owner must maintain comprehensive general liability insurance with minimum coverage of $2,000,000 per occurrence.\n\nSection 2.2: Additional Requirements\nFor specific requirements regarding tenant insurance obligations, refer to the supplementary maintenance contract and lease addendum documents.',
+      highlights: [
+        { 
+          text: 'Property Owner must maintain comprehensive general liability insurance', 
+          field: 'Maintenance Owner Responsibility',
+          color: 'bg-green-200'
+        },
+        { 
+          text: 'minimum coverage of $2,000,000 per occurrence', 
+          field: 'Legal Notes',
+          color: 'bg-yellow-200'
+        }
+      ],
+      // Multiple document references for this snippet
+      documentReferences: [
+        {
+          documentId: 'doc-2',
+          documentName: 'lease-agreement-2024.pdf',
+          pageNumber: 22,
+          fullText: 'ARTICLE VI - INSURANCE PROVISIONS (CONTINUED)\n\nSection 6.3: Tenant Insurance Obligations\nAs referenced in the primary lease document Section 2.1, the Tenant shall maintain property insurance covering all tenant improvements and personal property. The Tenant must also carry business interruption insurance with a minimum 12-month coverage period.\n\nSection 6.4: Certificate Requirements\nTenant must provide certificates of insurance to the Landlord annually, naming the Landlord as additional insured on all policies.',
+          highlights: [
+            {
+              text: 'Tenant shall maintain property insurance covering all tenant improvements',
+              field: 'Responsible Party',
+              color: 'bg-blue-200'
+            },
+            {
+              text: 'business interruption insurance with a minimum 12-month coverage period',
+              field: 'Legal Notes',
+              color: 'bg-yellow-200'
+            }
+          ]
+        },
+        {
+          documentId: 'doc-3',
+          documentName: 'maintenance-contract-2025.pdf',
+          pageNumber: 5,
+          fullText: 'SCHEDULE A - MAINTENANCE INSURANCE REQUIREMENTS\n\nSection A.1: Contractor Insurance\nAll maintenance contractors engaged by either party must carry workers compensation insurance and general liability coverage of at least $1,000,000 per occurrence as stipulated in the primary lease agreement Section 2.1.\n\nSection A.2: Proof of Coverage\nContractors must provide current certificates of insurance before commencing any work on the premises. The Property Owner shall verify all contractor insurance compliance.',
+          highlights: [
+            {
+              text: 'Property Owner shall verify all contractor insurance compliance',
+              field: 'Maintenance Owner Responsibility',
+              color: 'bg-green-200'
+            },
+            {
+              text: 'general liability coverage of at least $1,000,000 per occurrence',
+              field: 'Legal Notes',
+              color: 'bg-yellow-200'
+            }
+          ]
+        }
+      ]
+    },
+    fieldMappings: {
+      responsibleParty: 'Both Parties',
+      maintenanceOwnerResponsibility: 'Maintain liability insurance, verify contractor insurance compliance',
+      maintenanceReasoning: 'Per Section 2.1 and cross-referenced documents, owner must maintain comprehensive liability coverage and ensure contractor compliance across all maintenance activities',
+    },
+    matchedFields: ['Responsible Party', 'Maintenance Owner Responsibility', 'Legal Notes'],
   }
 ];
 

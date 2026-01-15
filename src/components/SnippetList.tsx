@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { Check, X, FileText, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Check, X, FileText, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import { PDFSnippetViewer } from './PDFSnippetViewer';
 import { AIAnalyzingAnimation } from './AIAnalyzingAnimation';
 
@@ -15,6 +15,15 @@ interface PageReference {
   highlights?: Highlight[];
 }
 
+interface DocumentReference {
+  documentId: string;
+  documentName: string;
+  fullText: string;
+  highlights?: Highlight[];
+  pageNumber: number;
+  pageReferences?: PageReference[]; // Additional pages with references within this document
+}
+
 interface PDFReference {
   page: number;
   segment: string;
@@ -22,6 +31,7 @@ interface PDFReference {
   fullText?: string;
   highlights?: Highlight[];
   pageReferences?: PageReference[]; // Additional pages with references
+  documentReferences?: DocumentReference[]; // Multiple document references
 }
 
 interface Snippet {
@@ -107,6 +117,8 @@ export function SnippetList({
     onFlip: () => void;
   }) => {
     const scrollToPageRef = useRef<((page: number) => void) | null>(null);
+    const [selectedDocumentIndex, setSelectedDocumentIndex] = useState(0);
+    const [showDocumentDropdown, setShowDocumentDropdown] = useState(false);
 
     const handleCardClick = (e: React.MouseEvent) => {
       // Don't flip if clicking on buttons or interactive elements
@@ -120,6 +132,14 @@ export function SnippetList({
     const isUpdated = snippet.status === 'updated';
     const isDeleted = snippet.status === 'deleted';
     const [showDeletedPopup, setShowDeletedPopup] = useState(false);
+
+    // Check if snippet has multiple document references
+    const hasMultipleDocuments = snippet.pdfReference.documentReferences && snippet.pdfReference.documentReferences.length > 0;
+    
+    // Get current document data
+    const currentDocumentData = hasMultipleDocuments 
+      ? snippet.pdfReference.documentReferences![selectedDocumentIndex]
+      : null;
 
     return (
       <div
@@ -260,24 +280,28 @@ export function SnippetList({
               }}
             >
               {/* Header with References */}
-              <div className="px-4 pt-4 pb-2 flex items-center justify-between gap-3">
-                {/* Reference Tags - show if there are multiple pages */}
-                {snippet.pdfReference.pageReferences && snippet.pdfReference.pageReferences.length > 0 && (
+              <div className="px-4 pt-4 pb-2 flex items-center gap-3">
+                {/* Left side - Reference Tags - show if there are multiple pages */}
+                {((hasMultipleDocuments && currentDocumentData && currentDocumentData.pageReferences && currentDocumentData.pageReferences.length > 0) ||
+                  (!hasMultipleDocuments && snippet.pdfReference.pageReferences && snippet.pdfReference.pageReferences.length > 0)) && (
                   <div className="flex items-center gap-2 flex-wrap" data-tutorial="page-references">
                     <span className="text-xs font-medium text-gray-700">References:</span>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         if (scrollToPageRef.current) {
-                          scrollToPageRef.current(snippet.pdfReference.page);
+                          const pageNum = hasMultipleDocuments && currentDocumentData 
+                            ? currentDocumentData.pageNumber 
+                            : snippet.pdfReference.page;
+                          scrollToPageRef.current(pageNum);
                         }
                       }}
                       className="px-2.5 py-1 text-xs rounded-md transition-colors font-medium bg-white border border-blue-300 text-blue-700 hover:bg-blue-50 hover:border-blue-400"
-                      title={`Go to page ${snippet.pdfReference.page}`}
+                      title={`Go to page ${hasMultipleDocuments && currentDocumentData ? currentDocumentData.pageNumber : snippet.pdfReference.page}`}
                     >
-                      Page {snippet.pdfReference.page}
+                      Page {hasMultipleDocuments && currentDocumentData ? currentDocumentData.pageNumber : snippet.pdfReference.page}
                     </button>
-                    {snippet.pdfReference.pageReferences.map((pageRef) => (
+                    {(hasMultipleDocuments && currentDocumentData ? currentDocumentData.pageReferences : snippet.pdfReference.pageReferences)?.map((pageRef) => (
                       <button
                         key={pageRef.page}
                         onClick={(e) => {
@@ -294,6 +318,50 @@ export function SnippetList({
                     ))}
                   </div>
                 )}
+
+                {/* Spacer to push document dropdown to the right */}
+                <div className="flex-1"></div>
+
+                {/* Right side - Document Dropdown - Only show if multiple documents */}
+                {hasMultipleDocuments && snippet.pdfReference.documentReferences && (
+                  <div className="relative" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      onClick={() => setShowDocumentDropdown(!showDocumentDropdown)}
+                      className="px-3 py-1.5 text-xs rounded-md transition-colors font-medium bg-white border border-purple-300 text-purple-700 hover:bg-purple-50 hover:border-purple-400 flex items-center gap-1.5"
+                      title="Select document"
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      <span className="max-w-[120px] truncate">
+                        {snippet.pdfReference.documentReferences[selectedDocumentIndex].documentName}
+                      </span>
+                      <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showDocumentDropdown ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {/* Dropdown Menu */}
+                    {showDocumentDropdown && (
+                      <div className="absolute right-0 mt-1 bg-white border border-gray-300 rounded-md shadow-lg z-50 min-w-[200px] max-w-[300px]">
+                        {snippet.pdfReference.documentReferences.map((docRef, idx) => (
+                          <button
+                            key={docRef.documentId}
+                            onClick={() => {
+                              setSelectedDocumentIndex(idx);
+                              setShowDocumentDropdown(false);
+                            }}
+                            className={`w-full text-left px-3 py-2 text-xs hover:bg-purple-50 transition-colors flex items-center gap-2 ${
+                              idx === selectedDocumentIndex ? 'bg-purple-100 text-purple-900 font-semibold' : 'text-gray-700'
+                            } ${idx === 0 ? 'rounded-t-md' : ''} ${idx === snippet.pdfReference.documentReferences!.length - 1 ? 'rounded-b-md' : 'border-b border-gray-200'}`}
+                          >
+                            <FileText className="w-3.5 h-3.5 flex-shrink-0" />
+                            <span className="truncate">{docRef.documentName}</span>
+                            {idx === selectedDocumentIndex && (
+                              <Check className="w-3.5 h-3.5 ml-auto flex-shrink-0" />
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* PDF-like Content - Scrollable */}
@@ -303,11 +371,11 @@ export function SnippetList({
                   <div className="bg-gray-100 p-2">
                     {snippet.pdfReference.fullText ? (
                       <PDFSnippetViewer
-                        fullText={snippet.pdfReference.fullText}
-                        highlights={snippet.pdfReference.highlights}
-                        pageNumber={snippet.pdfReference.page}
+                        fullText={hasMultipleDocuments && currentDocumentData ? currentDocumentData.fullText : snippet.pdfReference.fullText}
+                        highlights={hasMultipleDocuments && currentDocumentData ? currentDocumentData.highlights : snippet.pdfReference.highlights}
+                        pageNumber={hasMultipleDocuments && currentDocumentData ? currentDocumentData.pageNumber : snippet.pdfReference.page}
                         title={snippet.title}
-                        pageReferences={snippet.pdfReference.pageReferences}
+                        pageReferences={hasMultipleDocuments && currentDocumentData ? currentDocumentData.pageReferences : snippet.pdfReference.pageReferences}
                         onPageClick={() => {
                           // Scroll to page is handled internally by PDFSnippetViewer
                         }}

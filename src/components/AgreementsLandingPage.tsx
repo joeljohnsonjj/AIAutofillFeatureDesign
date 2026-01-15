@@ -244,7 +244,7 @@ export function AgreementsLandingPage() {
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
                   <Input
                     type="text"
-                    placeholder="Search"
+                    placeholder="   Search"
                     value={searchTerm}
                     onChange={(e) => handleSearch(e.target.value)}
                     className="pl-12 h-12 border-gray-300 rounded-lg"
