@@ -5,6 +5,7 @@ import { DocumentViewer } from './components/DocumentViewer';
 import { SnippetList } from './components/SnippetList';
 import type { Document } from './components/DocumentSelector';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from './components/ui/resizable';
+import { TutorialOverlay } from './components/TutorialOverlay';
 import { Search, X, ArrowLeft } from 'lucide-react';
 import { saveAgreement, getAgreementById, updateAgreement } from './utils/agreementStorage';
 import type { Agreement } from './components/AgreementsLandingPage';
@@ -90,6 +91,7 @@ const SNIPPET_DATABASE = [
       maintenanceReasoning: 'Per Section 3.2, owner maintains structural integrity and major building systems as defined in commercial lease standards',
     },
     matchedFields: ['Responsible Party', 'Maintenance Owner Responsibility', 'Legal Notes'],
+    status: 'updated', // 'normal', 'updated', 'deleted'
   },
   {
     id: '2',
@@ -240,6 +242,7 @@ const SNIPPET_DATABASE = [
       maintenanceReasoning: 'Percentage lease structure per Section 5.1 establishes proportional cost sharing with landlord covering major structural items and compliance requirements',
     },
     matchedFields: ['Responsible Party', 'Maintenance Owner Responsibility', 'Legal Notes'],
+    status: 'deleted', // Document was removed
   }
 ];
 
@@ -353,8 +356,12 @@ export default function App() {
   const [isAIApproved, setIsAIApproved] = useState(false);
   const [aiApprovedFormData, setAiApprovedFormData] = useState<Record<string, string>>({});
   
-  // Track if AI snippet has been accepted (for enabling Finish button)
-  const [hasAcceptedAISnippet, setHasAcceptedAISnippet] = useState(false);
+  // Tutorial state
+  const [showTutorial, setShowTutorial] = useState(false);
+  const [tutorialStep, setTutorialStep] = useState(0);
+  const [tutorialCompleted, setTutorialCompleted] = useState(() => {
+    return localStorage.getItem('aiTutorialCompleted') === 'true';
+  });
   
   // Track checked documents (PDFs referenced by AI)
   const [checkedDocuments, setCheckedDocuments] = useState<Set<string>>(new Set());
@@ -363,6 +370,112 @@ export default function App() {
   // Track which snippets have been applied (to know which documents to keep checked)
   const [appliedSnippets, setAppliedSnippets] = useState<Set<string>>(new Set());
   const appliedSnippetsRef = useRef<Set<string>>(new Set());
+  
+  // Tutorial steps definition
+  const tutorialSteps = [
+    {
+      id: 'navigation',
+      title: 'Navigate Through Suggestions',
+      message: 'Use the left and right arrow buttons to navigate through different AI suggestions. You can also use your mouse wheel to scroll through snippets.',
+      target: '[data-tutorial="snippet-navigation"]',
+      position: 'left' as const,
+      action: 'Watch as we navigate through snippets...',
+      autoAction: 'navigate' as const,
+    },
+    {
+      id: 'flip-card',
+      title: 'View PDF Reference',
+      message: 'Click anywhere on the snippet card to flip it and see the PDF reference with highlighted text showing where the AI found this information.',
+      target: '[data-tutorial="snippet-card"]',
+      position: 'left' as const,
+      action: 'Watch as the card flips to show the PDF reference...',
+      autoAction: 'flip' as const,
+    },
+    {
+      id: 'page-navigation',
+      title: 'Navigate PDF Pages',
+      message: 'When viewing the PDF reference, you can click on the page number buttons to jump to different pages that reference this information.',
+      target: '[data-tutorial="page-references"]',
+      position: 'left' as const,
+      action: 'See the PDF scroll to different referenced pages...',
+    },
+    {
+      id: 'flip-back',
+      title: 'Return to Summary',
+      message: 'Click the card again to flip back to the AI summary view where you can see all the field mappings.',
+      target: '[data-tutorial="snippet-card"]',
+      position: 'left' as const,
+      action: 'Flipping back to summary view...',
+      autoAction: 'flip' as const,
+    },
+    {
+      id: 'accept-button',
+      title: 'Accept AI Suggestions',
+      message: 'Click the Accept button to apply the AI suggestions to your form. The split screen will collapse and all fields will be filled with the selected snippet data.',
+      target: '[data-tutorial="accept-button"]',
+      position: 'left' as const,
+      action: 'This will fill the form fields with the AI suggestions',
+    },
+    {
+      id: 'form-fields',
+      title: 'View Filled Fields',
+      message: 'After accepting, the form fields will be filled with the AI-generated data. You can review and edit them as needed.',
+      target: '[data-section="maintenance"]',
+      position: 'right' as const,
+      action: 'The fields are now populated with AI data',
+    },
+    {
+      id: 'document-selection',
+      title: 'Select Documents',
+      message: 'Check or uncheck documents to control which files the AI searches through. Only checked documents will be analyzed for suggestions.',
+      target: '[data-tutorial="documents"]',
+      position: 'top' as const,
+      action: 'You can select which documents to analyze',
+    },
+  ];
+  
+  // Tutorial handlers
+  const handleTutorialNext = () => {
+    if (tutorialStep < tutorialSteps.length - 1) {
+      setTutorialStep(tutorialStep + 1);
+    }
+  };
+  
+  const handleTutorialSkip = () => {
+    setShowTutorial(false);
+    setTutorialStep(0);
+    localStorage.setItem('aiTutorialCompleted', 'true');
+    setTutorialCompleted(true);
+  };
+  
+  const handleTutorialComplete = () => {
+    setShowTutorial(false);
+    setTutorialStep(0);
+    localStorage.setItem('aiTutorialCompleted', 'true');
+    setTutorialCompleted(true);
+  };
+  
+  // Handle automatic tutorial actions
+  const handleTutorialAutoAction = (action: string) => {
+    if (action === 'navigate') {
+      // Auto-navigate to next snippet
+      // This is handled by SnippetList, we'll pass a prop
+    } else if (action === 'flip') {
+      // Auto-flip the snippet card
+      // This is handled by SnippetList, we'll pass a prop
+    }
+  };
+  
+  // Start tutorial when AI mode is enabled for the first time
+  useEffect(() => {
+    if (aiMode && !tutorialCompleted && snippets.length > 0 && !showTutorial) {
+      // Small delay to let the split screen render
+      setTimeout(() => {
+        setShowTutorial(true);
+        setTutorialStep(0);
+      }, 500);
+    }
+  }, [aiMode, snippets.length, tutorialCompleted, showTutorial]);
   
   // Map snippets to documents using snippet's documentId
   const getDocumentIdForSnippet = (snippet: any): string | null => {
@@ -462,9 +575,6 @@ export default function App() {
   // Use ref to store latest formData for field search (ensures we always have current values)
   const formDataRef = useRef(formData);
   
-  // Track last auto-populated snippet to prevent re-populating the same one
-  const lastAutoPopulatedSnippetId = useRef<string | null>(null);
-  
   // Document management
   const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
   const [lastViewedDocumentId, setLastViewedDocumentId] = useState<string | null>(null);
@@ -472,6 +582,39 @@ export default function App() {
   // Track if we're editing an existing agreement
   const [isEditing, setIsEditing] = useState(false);
   const [editingAgreement, setEditingAgreement] = useState<Agreement | null>(null);
+  
+  // Determine review reason based on agreement status and document changes
+  const getReviewReason = (): string | undefined => {
+    if (!editingAgreement || editingAgreement.status !== 'Needs Review') {
+      return undefined;
+    }
+    
+    // Check for document conflicts
+    const agreementDocs = editingAgreement.documents || [];
+    
+    // Check if any referenced documents have been deleted
+    const hasDeletedDocs = agreementDocs.some(docId => {
+      return !DOCUMENTS.find(doc => doc.id === docId);
+    });
+    
+    if (hasDeletedDocs) {
+      return 'One or more documents referenced in this agreement have been removed from the system. Please review and update the agreement with current documents.';
+    }
+    
+    // Check for updated documents (by checking if snippets from those docs have updated status)
+    const hasUpdatedSnippets = SNIPPET_DATABASE.some(snippet => 
+      snippet.status === 'updated' && agreementDocs.includes(snippet.documentId)
+    );
+    
+    if (hasUpdatedSnippets) {
+      return 'Documents referenced in this agreement have been updated with new information. Please review the changes and approve or select different snippets.';
+    }
+    
+    // Default: saved as draft
+    return 'This agreement was saved as a draft and requires review before it can be finalized.';
+  };
+  
+  const reviewReason = getReviewReason();
   
   // Load agreement data when editing
   useEffect(() => {
@@ -890,13 +1033,7 @@ export default function App() {
           segment: matches[0].pdfReference.segment,
         });
         setIsAnalyzing(false);
-        // Auto-populate first snippet to all maintenance fields if it's different from the last one
-        setTimeout(() => {
-          if (lastAutoPopulatedSnippetId.current !== matches[0].id) {
-            lastAutoPopulatedSnippetId.current = matches[0].id;
-            handleApplySnippet(matches[0], true);
-          }
-        }, 100);
+        // Auto-fill disabled - user must manually click Accept button
       } else {
         // If no matches, show all snippets so user can still browse
         const snippetsWithConfidence = SNIPPET_DATABASE.map(snippet => ({
@@ -1000,7 +1137,6 @@ export default function App() {
       });
 
       let matches: any[] = [];
-      let shouldAutoPrefill = false;
 
       if (filledFields.length > 0) {
         // Find snippets that match the pre-filled fields with fuzzy/partial matching
@@ -1052,17 +1188,11 @@ export default function App() {
           confidenceScore: Math.max(60, 100 - (index * 5)), // Higher confidence for better matches
         }));
       } else {
-        // No fields filled - show all available snippets from selected documents and auto-prefill first one
+        // No fields filled - show all available snippets from selected documents
         matches = availableSnippets.map(snippet => ({
           ...snippet,
           confidenceScore: 50, // Default confidence when no search criteria
         }));
-        shouldAutoPrefill = true;
-      }
-
-      // If few fields filled (1-2), also auto-prefill
-      if (filledFields.length > 0 && filledFields.length < 3) {
-        shouldAutoPrefill = true;
       }
 
       // Ensure all snippets have confidence scores (fallback)
@@ -1071,22 +1201,14 @@ export default function App() {
         confidenceScore: snippet.confidenceScore !== undefined ? snippet.confidenceScore : 50,
       }));
 
-      // Show matching snippets
+      // Show matching snippets - no auto-fill
       if (matches.length > 0) {
         setSnippets(matches);
         setHighlightedSection({
           page: matches[0].pdfReference.page,
           segment: matches[0].pdfReference.segment,
         });
-
-        // Auto-prefill with first snippet if needed
-        if (shouldAutoPrefill) {
-          // Use setTimeout to ensure state updates are processed
-          setTimeout(() => {
-            // Apply snippet but keep snippets visible so user can change
-            handleApplySnippet(matches[0], true);
-          }, 100);
-        }
+        // Auto-fill disabled - user must manually click Accept button
       }
     }
 
@@ -1143,71 +1265,12 @@ export default function App() {
   const handleAcceptGhost = (fieldId: string) => {
     const ghostValue = ghostValues[fieldId];
     if (ghostValue) {
-      // Convert ALL ghost values to permanent values (accept all at once)
-      setFormData(prev => {
+      setFormData(prev => ({ ...prev, [fieldId]: ghostValue }));
+      setGhostValues(prev => {
         const updated = { ...prev };
-        // Accept all ghost values, not just the current field
-        Object.entries(ghostValues).forEach(([gFieldId, gValue]) => {
-          updated[gFieldId] = gValue;
-        });
+        delete updated[fieldId];
         return updated;
       });
-      
-      // Clear all ghost values
-      setGhostValues({});
-      
-      // Enable Finish button
-      setHasAcceptedAISnippet(true);
-      
-      // Turn off AI mode (collapse split screen)
-      setAiMode(false);
-      
-      // Clear snippets
-      setSnippets([]);
-      setGlobalSearchQuery('');
-      setHighlightedSection(null);
-      
-      // Scroll to maintenance section when ghost text is edited (same as Accept button)
-      // Use multiple attempts to ensure scroll works after DOM updates
-      const scrollToMaintenance = () => {
-        const maintenanceSection = document.querySelector('[data-section="maintenance"]');
-        if (maintenanceSection) {
-          // Try to find scrollable container (works in split screen mode)
-          const formContainer = maintenanceSection.closest('.overflow-y-auto');
-          if (formContainer) {
-            // Calculate position relative to the scrollable container
-            const containerRect = formContainer.getBoundingClientRect();
-            const sectionRect = maintenanceSection.getBoundingClientRect();
-            const scrollTop = formContainer.scrollTop;
-            const relativeTop = sectionRect.top - containerRect.top + scrollTop;
-            
-            formContainer.scrollTo({
-              top: relativeTop - 20, // 20px offset from top
-              behavior: 'smooth',
-            });
-            return true;
-          } else {
-            // Fallback: scroll the window (works when split screen has collapsed)
-            const elementTop = maintenanceSection.getBoundingClientRect().top + window.pageYOffset;
-            window.scrollTo({
-              top: elementTop - 100, // 100px offset from top of window
-              behavior: 'smooth',
-            });
-            return true;
-          }
-        }
-        return false;
-      };
-      
-      // Try scrolling after delay to ensure split screen has collapsed and DOM is updated
-      setTimeout(() => {
-        scrollToMaintenance();
-      }, 500);
-      
-      // Retry after additional delay to handle any async DOM updates
-      setTimeout(() => {
-        scrollToMaintenance();
-      }, 800);
     }
   };
 
@@ -1323,12 +1386,6 @@ export default function App() {
     
     // Set all ghost values at once (this will show even if fields have existing text)
     setGhostValues(newGhostValues);
-    
-    // When ghost values are shown (new snippet being previewed), disable Finish button
-    // This ensures user must accept the new snippet before finishing
-    if (Object.keys(newGhostValues).length > 0) {
-      setHasAcceptedAISnippet(false);
-    }
   };
 
   const handleBack = () => {
@@ -1462,6 +1519,23 @@ export default function App() {
     }
   };
 
+  const handleApproveAIChanges = () => {
+    // Approve AI changes - convert ghost values to actual values and mark as approved
+    const approvedData = { ...formData };
+    
+    // Accept all ghost values
+    Object.entries(ghostValues).forEach(([fieldId, ghostValue]) => {
+      if (!approvedData[fieldId] || approvedData[fieldId].trim().length === 0) {
+        approvedData[fieldId] = ghostValue;
+      }
+    });
+    
+    setFormData(approvedData);
+    setGhostValues({});
+    setIsAIApproved(true);
+    setAiApprovedFormData({ ...approvedData }); // Store snapshot for comparison
+  };
+
   const handleApplySnippet = (snippet: any, keepSnippetsVisible: boolean = true) => {
     // Apply snippet to form fields (including all three fields)
     // Always apply to all three maintenance fields, even if they have existing text
@@ -1531,7 +1605,6 @@ export default function App() {
       setGlobalSearchQuery('');
       setGhostValues({}); // Clear ghost values
       setAiMode(false); // Turn off AI mode
-      setHasAcceptedAISnippet(true); // Mark that AI snippet has been accepted - enables Finish button
       // Do not navigate - user stays on the form page
       
       // Scroll to maintenance section when accept button is clicked
@@ -1580,6 +1653,18 @@ export default function App() {
           </div>
           
           <div className="flex items-center gap-4">
+            {aiMode && tutorialCompleted && (
+              <button 
+                onClick={() => {
+                  setShowTutorial(true);
+                  setTutorialStep(0);
+                }}
+                className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-1"
+                title="Restart tutorial"
+              >
+                🎓 Tutorial
+              </button>
+            )}
             <button className="text-gray-600 hover:text-gray-900">
               🔍
             </button>
@@ -1664,6 +1749,7 @@ export default function App() {
                     snippetsCount={snippets.length}
                     onSaveDraft={handleSaveDraft}
                     onFinish={handleFinish}
+                    onApproveAIChanges={handleApproveAIChanges}
                     isAIApproved={isAIApproved}
                     hasAIChanges={hasAIChanges}
                     isEditing={isEditing}
@@ -1672,7 +1758,7 @@ export default function App() {
                     checkedDocuments={Array.from(checkedDocuments)}
                     hasAIGeneratedFields={aiGeneratedFieldsMap}
                     onDocumentCheckChange={handleDocumentCheckChange}
-                    hasAcceptedAISnippet={hasAcceptedAISnippet}
+                    reviewReason={reviewReason}
                   />
                 </div>
               </ResizablePanel>
@@ -1701,6 +1787,9 @@ export default function App() {
                     }}
                     searchQuery={globalSearchQuery}
                     isAnalyzing={isAnalyzing}
+                    tutorialActive={showTutorial}
+                    tutorialStep={tutorialStep}
+                    tutorialAction={tutorialSteps[tutorialStep]?.autoAction}
                   />
                 ) : (
                   <DocumentViewer 
@@ -1711,6 +1800,17 @@ export default function App() {
               </ResizablePanel>
             </ResizablePanelGroup>
           </main>
+          
+          {/* Tutorial Overlay */}
+          <TutorialOverlay
+            isActive={showTutorial}
+            currentStep={tutorialStep}
+            steps={tutorialSteps}
+            onNext={handleTutorialNext}
+            onSkip={handleTutorialSkip}
+            onComplete={handleTutorialComplete}
+            onAutoAction={handleTutorialAutoAction}
+          />
         </>
       ) : (
         /* Original Single Pane Layout */
@@ -1722,6 +1822,7 @@ export default function App() {
             onToggleAiMode={handleToggleAiMode}
             onSaveDraft={handleSaveDraft}
             onFinish={handleFinish}
+            onApproveAIChanges={handleApproveAIChanges}
             isAIApproved={isAIApproved}
             hasAIChanges={hasAIChanges}
             isEditing={isEditing}
@@ -1730,7 +1831,7 @@ export default function App() {
             checkedDocuments={Array.from(checkedDocuments)}
             hasAIGeneratedFields={aiGeneratedFieldsMap}
             onDocumentCheckChange={handleDocumentCheckChange}
-            hasAcceptedAISnippet={hasAcceptedAISnippet}
+            reviewReason={reviewReason}
           />
         </main>
       )}

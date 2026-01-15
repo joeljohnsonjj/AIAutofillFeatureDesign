@@ -17,7 +17,6 @@ interface AgreementFormProps {
   snippetsCount?: number;
   onSaveDraft?: () => void;
   onFinish?: () => void;
-  onApproveAIChanges?: () => void;
   isAIApproved?: boolean;
   hasAIChanges?: boolean;
   isEditing?: boolean;
@@ -26,7 +25,8 @@ interface AgreementFormProps {
   checkedDocuments?: string[];
   onDocumentCheckChange?: (documentId: string, checked: boolean) => void;
   hasAIGeneratedFields?: Record<string, boolean>;
-  hasAcceptedAISnippet?: boolean; // Track if AI snippet has been accepted
+  hasAcceptedAISnippet?: boolean;
+  reviewReason?: string;
 }
 
 export function AgreementForm({ 
@@ -41,7 +41,6 @@ export function AgreementForm({
   snippetsCount = 0,
   onSaveDraft,
   onFinish,
-  onApproveAIChanges,
   isAIApproved = false,
   hasAIChanges = false,
   isEditing = false,
@@ -51,15 +50,28 @@ export function AgreementForm({
   onDocumentCheckChange,
   hasAIGeneratedFields = {},
   hasAcceptedAISnippet = false,
+  reviewReason,
 }: AgreementFormProps) {
   // Determine if Finish button should be enabled
-  // When AI mode is ON with ghost values: Finish is disabled until user accepts the snippet
-  // When AI mode is OFF or no ghost values: Finish is enabled
-  const hasGhostValues = Object.keys(ghostValues).length > 0;
-  const isFinishEnabled = aiMode && hasGhostValues ? hasAcceptedAISnippet : true;
+  // Finish is always enabled now (no ghost values or approval needed)
+  const isFinishEnabled = true;
 
   return (
     <div className="bg-white rounded-lg shadow-sm">
+      {/* Review Reason Popup */}
+      {reviewReason && (
+        <div className="bg-red-50 border-l-4 border-red-300 px-6 py-4">
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0 mt-0.5">
+              <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+            </div>
+            <div className="flex-1">
+              <h3 className="text-sm font-semibold text-red-900 mb-1">Needs Review</h3>
+              <p className="text-sm text-red-800">{reviewReason}</p>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="border-b border-gray-200 px-6 py-4">
         <h1 className="font-bold">{isEditing ? 'Edit agreement' : 'Add agreement'}</h1>
       </div>
@@ -105,7 +117,7 @@ export function AgreementForm({
 
       {/* Documents List with Checkboxes - Always visible when documents exist */}
       {documents.length > 0 && (
-        <div className="border-t border-gray-200 px-6 py-4">
+        <div className="border-t border-gray-200 px-6 py-4" data-tutorial="documents">
           <h3 className="text-sm font-semibold text-gray-700 mb-3">
             Uploaded Documents {aiMode && <span className="text-xs text-gray-500 font-normal">(Select documents to filter AI snippets)</span>}
           </h3>

@@ -258,22 +258,22 @@ export function CategorySection({
     }
 
     if (category === 'maintenance') {
-      // Check if any maintenance field has ghost values
+      // Check if any maintenance field has AI-generated values (after Accept is pressed)
       const maintenanceFields = ['responsibleParty', 'maintenanceOwnerResponsibility', 'maintenanceReasoning'];
-      const hasGhostValues = aiMode && maintenanceFields.some(fieldId => ghostValues[fieldId]);
+      const hasAIFilledValues = maintenanceFields.some(fieldId => hasAIGeneratedFields[fieldId]);
       
       return (
         <div className="space-y-4">
-          {/* AI Status Message - Show when ghost values are present */}
-          {hasGhostValues && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-start gap-3">
+          {/* AI Filled Status Message - Show when fields have AI-generated values (after Accept) */}
+          {hasAIFilledValues && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-start gap-3">
               <div className="flex-shrink-0 mt-0.5">
-                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
               </div>
               <div className="flex-1">
-                <p className="text-sm text-blue-900">
-                  <span className="font-semibold">AI suggestions are shown in italic text.</span>
-                  {' '}Review the suggested values and click the <span className="font-semibold">Accept</span> button on the snippet card to apply them to the form.
+                <p className="text-sm text-green-900">
+                  <span className="font-semibold">These fields were filled by AI.</span>
+                  {' '}You can edit them as needed. The AI-generated content will remain until you manually clear all fields.
                 </p>
               </div>
             </div>

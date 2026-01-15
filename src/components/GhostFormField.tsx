@@ -54,11 +54,6 @@ export function GhostFormField({
   // Ghost text is shown automatically when hovering over snippets
 
   const handleChange = (newValue: string) => {
-    // If user is editing ghost text, accept it first (convert ghost to permanent)
-    if (isGhosted && onAcceptGhost) {
-      onAcceptGhost(id);
-    }
-    
     onChange(newValue);
     // Trigger reverse search when typing (even if less than 2 chars, to handle clearing fields)
     // This ensures we show all snippets when fields are cleared
