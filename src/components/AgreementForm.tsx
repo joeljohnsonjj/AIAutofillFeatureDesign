@@ -5,6 +5,24 @@ interface Document {
   name: string;
 }
 
+interface PDFReference {
+  page: number;
+  segment: string;
+  context?: string;
+  fullText?: string;
+}
+
+interface Snippet {
+  id: string;
+  title: string;
+  pdfReference: PDFReference;
+  fieldMappings: Record<string, string>;
+  matchedFields: string[];
+  confidenceScore?: number;
+  status?: 'normal' | 'updated' | 'deleted';
+  documentId?: string;
+}
+
 interface AgreementFormProps {
   formData: Record<string, string>;
   onFieldChange: (fieldId: string, value: string) => void;
@@ -15,17 +33,18 @@ interface AgreementFormProps {
   onToggleAiMode?: (enabled: boolean) => void;
   isAnalyzing?: boolean;
   snippetsCount?: number;
+  snippets?: Snippet[];
+  onApplySnippet?: (snippet: Snippet, keepSnippetsVisible?: boolean) => void;
   onSaveDraft?: () => void;
   onFinish?: () => void;
+  onApproveAIChanges?: () => void;
   isAIApproved?: boolean;
-  hasAIChanges?: boolean;
   isEditing?: boolean;
   onCancel?: () => void;
   documents?: Document[];
   checkedDocuments?: string[];
   onDocumentCheckChange?: (documentId: string, checked: boolean) => void;
   hasAIGeneratedFields?: Record<string, boolean>;
-  hasAcceptedAISnippet?: boolean;
   reviewReason?: string;
 }
 
@@ -39,17 +58,17 @@ export function AgreementForm({
   onToggleAiMode,
   isAnalyzing = false,
   snippetsCount = 0,
+  snippets = [],
+  onApplySnippet,
   onSaveDraft,
   onFinish,
   isAIApproved = false,
-  hasAIChanges = false,
   isEditing = false,
   onCancel,
   documents = [],
   checkedDocuments = [],
   onDocumentCheckChange,
   hasAIGeneratedFields = {},
-  hasAcceptedAISnippet = false,
   reviewReason,
 }: AgreementFormProps) {
   // Determine if Finish button should be enabled
@@ -110,6 +129,8 @@ export function AgreementForm({
           onToggleAiMode={onToggleAiMode}
           isAnalyzing={isAnalyzing}
           snippetsCount={snippetsCount}
+          snippets={snippets}
+          onApplySnippet={onApplySnippet}
           isAIApproved={isAIApproved}
           hasAIGeneratedFields={hasAIGeneratedFields}
         />

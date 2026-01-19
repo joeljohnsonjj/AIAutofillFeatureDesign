@@ -1,8 +1,26 @@
 import { useState, useEffect, useRef } from 'react';
-import { Search, Eye, Check, X } from 'lucide-react';
+import { Search, Eye, Check, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { FormField } from '../App';
 import { GhostFormField } from './GhostFormField';
 import { AIAnalyzingAnimation } from './AIAnalyzingAnimation';
+
+interface PDFReference {
+  page: number;
+  segment: string;
+  context?: string;
+  fullText?: string;
+}
+
+interface Snippet {
+  id: string;
+  title: string;
+  pdfReference: PDFReference;
+  fieldMappings: Record<string, string>;
+  matchedFields: string[];
+  confidenceScore?: number;
+  status?: 'normal' | 'updated' | 'deleted';
+  documentId?: string;
+}
 
 interface CategorySectionProps {
   category: string;
@@ -17,14 +35,10 @@ interface CategorySectionProps {
   onToggleAiMode?: (enabled: boolean) => void;
   isAnalyzing?: boolean;
   snippetsCount?: number;
+  snippets?: Snippet[];
+  onApplySnippet?: (snippet: Snippet, keepSnippetsVisible?: boolean) => void;
   isAIApproved?: boolean;
-  hasAIGeneratedFields?: Record<string, boolean>; // Track which fields have AI-generated values
-}
-
-interface PDFReference {
-  page: number;
-  segment: string;
-  context: string;
+  hasAIGeneratedFields?: Record<string, boolean>;
 }
 
 interface AIResponse {
@@ -35,10 +49,14 @@ interface AIResponse {
   fieldMappings: Record<string, string>;
   previewSections?: string[];
   citation?: string;
-  pdfReferences?: PDFReference[];
+  pdfReferences?: Array<{
+    page: number;
+    segment: string;
+    context: string;
+  }>;
 }
 
-// Mock AI responses based on search quer
+// Mock AI responses based on search query
 
 export function CategorySection({
   category,
@@ -52,6 +70,8 @@ export function CategorySection({
   onToggleAiMode,
   isAnalyzing = false,
   snippetsCount = 0,
+  snippets = [],
+  onApplySnippet,
   isAIApproved = false,
   hasAIGeneratedFields = {},
 }: CategorySectionProps) {
@@ -62,6 +82,14 @@ export function CategorySection({
   const [showCitations, setShowCitations] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [selectedPreviewResponse, setSelectedPreviewResponse] = useState<AIResponse | null>(null);
+  const [currentSnippetIndex, setCurrentSnippetIndex] = useState(0);
+
+  // Reset snippet index when snippets change
+  useEffect(() => {
+    if (snippets.length > 0) {
+      setCurrentSnippetIndex(0);
+    }
+  }, [snippets]);
   
   // Field-level autocomplete
   const [activeField, setActiveField] = useState<string | null>(null);
@@ -156,7 +184,7 @@ export function CategorySection({
           hasAISuggestion={hasGhost}
           sourceInfo={hasGhost ? {
             page: 12,
-            snippet: ghostValue?.substring(0, 50) + '...'
+            snippet: `${ghostValue?.substring(0, 50) ?? ''}...`
           } : undefined}
           isAIApproved={isAIApproved}
           aiMode={aiMode}
@@ -262,6 +290,8 @@ export function CategorySection({
       const maintenanceFields = ['responsibleParty', 'maintenanceOwnerResponsibility', 'maintenanceReasoning'];
       const hasAIFilledValues = maintenanceFields.some(fieldId => hasAIGeneratedFields[fieldId]);
       
+      const currentSnippet = snippets.length > 0 ? snippets[currentSnippetIndex] : null;
+      
       return (
         <div className="space-y-4">
           {/* AI Filled Status Message - Show when fields have AI-generated values (after Accept) */}
@@ -273,8 +303,106 @@ export function CategorySection({
               <div className="flex-1">
                 <p className="text-sm text-green-900">
                   <span className="font-semibold">These fields were filled by AI.</span>
-                  {' '}You can edit them as needed. The AI-generated content will remain until you manually clear all fields.
+                  {' '}You can edit them as needed.
                 </p>
+              </div>
+            </div>
+          )}
+
+          {/* AI Snippets Section - Show when AI mode is ON and snippets exist */}
+          {aiMode && snippets.length > 0 && (
+            <div className="mb-6">
+              {/* Main Card Container */}
+              <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+                {/* Header Section */}
+                <div className="px-4 py-3 border-b border-gray-200 bg-gray-50">
+                  <h3 className="text-sm font-bold text-gray-900">AI interpretations from agreement</h3>
+                </div>
+
+                {/* Content Section */}
+                {currentSnippet && (
+                  <div className="p-4">
+                    <div className="space-y-2">
+                      {/* Responsible Party Card */}
+                      {currentSnippet.fieldMappings.responsibleParty && (
+                        <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                          <p className="text-xs font-bold text-gray-700 mb-1.5">Responsible Party</p>
+                          <p className="text-sm text-gray-900 leading-relaxed">{currentSnippet.fieldMappings.responsibleParty}</p>
+                        </div>
+                      )}
+
+                      {/* Maintenance Owner Responsibility Card */}
+                      {currentSnippet.fieldMappings.maintenanceOwnerResponsibility && (
+                        <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                          <p className="text-xs font-bold text-gray-700 mb-1.5">Maintenance Owner Responsibility</p>
+                          <p className="text-sm text-gray-900 leading-relaxed">{currentSnippet.fieldMappings.maintenanceOwnerResponsibility}</p>
+                        </div>
+                      )}
+
+                      {/* Maintenance Reasoning Card */}
+                      {(currentSnippet.fieldMappings.maintenanceReasoning || currentSnippet.pdfReference.segment || currentSnippet.pdfReference.context) && (
+                        <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                          <p className="text-xs font-bold text-gray-700 mb-2">Maintenance Reasoning</p>
+                          <div className="text-sm text-gray-900 space-y-2">
+                            {currentSnippet.pdfReference.segment && (
+                              <p className="flex items-start gap-2 leading-relaxed">
+                                <span className="text-gray-500 mt-0.5">•</span>
+                                <span>Per Section {currentSnippet.pdfReference.page}, {currentSnippet.pdfReference.segment}</span>
+                              </p>
+                            )}
+                            {currentSnippet.pdfReference.context && (
+                              <p className="flex items-start gap-2 leading-relaxed">
+                                <span className="text-gray-500 mt-0.5">•</span>
+                                <span>{currentSnippet.pdfReference.context}</span>
+                              </p>
+                            )}
+                            {currentSnippet.fieldMappings.maintenanceReasoning && (
+                              <p className="flex items-start gap-2 leading-relaxed">
+                                <span className="text-gray-500 mt-0.5">•</span>
+                                <span>{currentSnippet.fieldMappings.maintenanceReasoning}</span>
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Footer with Pagination and Accept Button */}
+                    <div className="mt-4 pt-4 border-gray-200 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={() => setCurrentSnippetIndex((prev) => (prev - 1 + snippets.length) % snippets.length)}
+                          disabled={snippets.length <= 1}
+                          className="p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          <ChevronLeft className="w-5 h-5" />
+                        </button>
+                        <span className="text-sm text-gray-600 font-medium">
+                          {currentSnippetIndex + 1} of {snippets.length} rows
+                        </span>
+                        <button
+                          onClick={() => setCurrentSnippetIndex((prev) => (prev + 1) % snippets.length)}
+                          disabled={snippets.length <= 1}
+                          className="p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          <ChevronRight className="w-5 h-5" />
+                        </button>
+                      </div>
+                      <button
+                        onClick={() => {
+                          if (onApplySnippet && currentSnippet) {
+                            // Apply snippet, hide carousel, and turn off AI mode
+                            // Passing false will clear snippets and turn off AI mode in handleApplySnippet
+                            onApplySnippet(currentSnippet, false);
+                          }
+                        }}
+                        className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm font-medium shadow-sm"
+                      >
+                        Accept
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}

@@ -1,10 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AgreementForm } from './components/AgreementForm';
-import { DocumentViewer } from './components/DocumentViewer';
-import { SnippetList } from './components/SnippetList';
 import type { Document } from './components/DocumentSelector';
-import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from './components/ui/resizable';
 import { TutorialOverlay } from './components/TutorialOverlay';
 import { Search, X, ArrowLeft } from 'lucide-react';
 import { saveAgreement, getAgreementById, updateAgreement } from './utils/agreementStorage';
@@ -415,7 +412,6 @@ export default function App() {
   const [aiMode, setAiMode] = useState(false);
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
   const [snippets, setSnippets] = useState<any[]>([]);
-  const [highlightedSection, setHighlightedSection] = useState<{ page: number; segment: string } | null>(null);
   const [ghostValues, setGhostValues] = useState<Record<string, string>>({});
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   
@@ -575,9 +571,9 @@ export default function App() {
         
         // If there are filled fields, filter by them too
         const maintenanceFields = ['responsibleParty', 'maintenanceOwnerResponsibility', 'maintenanceReasoning'];
-        const filledFields = Object.entries(formData).filter(([key, value]) => {
-          return maintenanceFields.includes(key) && value && value.trim().length > 0;
-        });
+        const filledFields = Object.entries(formData).filter(([key, value]) => 
+          maintenanceFields.includes(key) && value?.trim()
+        );
         
         let filteredSnippets = availableSnippets;
         
@@ -615,15 +611,6 @@ export default function App() {
         }));
         
         setSnippets(snippetsWithConfidence);
-        
-        if (snippetsWithConfidence.length > 0) {
-          setHighlightedSection({
-            page: snippetsWithConfidence[0].pdfReference.page,
-            segment: snippetsWithConfidence[0].pdfReference.segment,
-          });
-        } else {
-          setHighlightedSection(null);
-        }
       }
       
       return newSet;
@@ -644,7 +631,6 @@ export default function App() {
   
   // Document management
   const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
-  const [lastViewedDocumentId, setLastViewedDocumentId] = useState<string | null>(null);
   
   // Track if we're editing an existing agreement
   const [isEditing, setIsEditing] = useState(false);
@@ -703,15 +689,11 @@ export default function App() {
           billingAgreement: '',
         });
         // Restore checked documents
-        if (storedAgreement.documents && storedAgreement.documents.length > 0) {
-          const docsSet = new Set(storedAgreement.documents);
-          setCheckedDocuments(docsSet);
-          checkedDocumentsRef.current = docsSet;
-        } else {
-          const emptySet = new Set<string>();
-          setCheckedDocuments(emptySet);
-          checkedDocumentsRef.current = emptySet;
-        }
+        const docsSet = storedAgreement.documents?.length 
+          ? new Set(storedAgreement.documents)
+          : new Set<string>();
+        setCheckedDocuments(docsSet);
+        checkedDocumentsRef.current = docsSet;
         // Reset applied snippets when loading (we don't track which snippets were used)
         const emptySnippetsSet = new Set<string>();
         setAppliedSnippets(emptySnippetsSet);
@@ -734,15 +716,11 @@ export default function App() {
             billingAgreement: '',
           });
           // Reset checked documents and applied snippets for mock agreements
-          if (mockAgreement.documents && mockAgreement.documents.length > 0) {
-            const docsSet = new Set<string>(mockAgreement.documents);
-            setCheckedDocuments(docsSet);
-            checkedDocumentsRef.current = docsSet;
-          } else {
-            const emptySet = new Set<string>();
-            setCheckedDocuments(emptySet);
-            checkedDocumentsRef.current = emptySet;
-          }
+          const docsSet = mockAgreement.documents?.length
+            ? new Set<string>(mockAgreement.documents)
+            : new Set<string>();
+          setCheckedDocuments(docsSet);
+          checkedDocumentsRef.current = docsSet;
           const emptySnippetsSet = new Set<string>();
           setAppliedSnippets(emptySnippetsSet);
           appliedSnippetsRef.current = emptySnippetsSet;
@@ -772,13 +750,6 @@ export default function App() {
     }
   }, [id]);
   
-  // Check if there are AI changes that need approval
-  // AI changes exist when:
-  // 1. AI mode is ON
-  // Track which fields have AI-generated values (even when AI mode is off)
-  // This includes fields that were populated by AI snippets
-  const hasAIGeneratedFields = appliedSnippets.size > 0 || Object.keys(aiApprovedFormData).length > 0;
-  
   // Track which specific fields have AI-generated values
   const getAIGeneratedFieldsMap = (): Record<string, boolean> => {
     const fieldsMap: Record<string, boolean> = {};
@@ -787,7 +758,7 @@ export default function App() {
     // If there are applied snippets, those fields have AI-generated values
     if (appliedSnippets.size > 0) {
       maintenanceFields.forEach(fieldId => {
-        if (formData[fieldId] && formData[fieldId].trim().length > 0) {
+        if (formData[fieldId]?.trim()) {
           fieldsMap[fieldId] = true;
         }
       });
@@ -795,7 +766,7 @@ export default function App() {
     
     // Also check approved form data
     Object.keys(aiApprovedFormData).forEach(fieldId => {
-      if (aiApprovedFormData[fieldId] && aiApprovedFormData[fieldId].trim().length > 0) {
+      if (aiApprovedFormData[fieldId]?.trim()) {
         fieldsMap[fieldId] = true;
       }
     });
@@ -804,27 +775,6 @@ export default function App() {
   };
   
   const aiGeneratedFieldsMap = getAIGeneratedFieldsMap();
-  
-  // 2. Determine if AI approval is needed
-  // AI approval is needed if:
-  // - There are ghost values (unapproved AI suggestions) - regardless of AI mode state
-  // - AI fields exist but haven't been approved yet - regardless of AI mode state
-  // - AI fields were approved but then modified (form data differs from approved data) - regardless of AI mode state
-  const hasUnapprovedGhostValues = Object.keys(ghostValues).length > 0;
-  
-  // Check if approved data differs from current form data (user modified approved AI values)
-  const hasApprovedButModified = isAIApproved && Object.keys(aiApprovedFormData).length > 0 && 
-    JSON.stringify(formData) !== JSON.stringify(aiApprovedFormData);
-  
-  // Check if AI fields exist but haven't been approved yet
-  const hasAIFieldsNotApproved = hasAIGeneratedFields && !isAIApproved;
-  
-  // AI approval is needed if any of these conditions are true
-  // This ensures the button shows:
-  // 1. When AI toggle is ON and there are unapproved changes
-  // 2. When AI toggle is OFF but AI values were used (and not approved or were modified)
-  // 3. When user modifies approved AI values (button reappears)
-  const hasAIChanges = hasUnapprovedGhostValues || hasApprovedButModified || hasAIFieldsNotApproved;
   
   // Keep formDataRef in sync with formData
   useEffect(() => {
@@ -836,18 +786,8 @@ export default function App() {
     if (aiMode && !selectedDocumentId && DOCUMENTS.length > 0) {
       const firstDocId = DOCUMENTS[0].id;
       setSelectedDocumentId(firstDocId);
-      setLastViewedDocumentId(firstDocId);
     }
   }, [aiMode, selectedDocumentId]);
-
-  // Track last viewed document when snippets are shown
-  useEffect(() => {
-    if (snippets.length > 0 && selectedDocumentId) {
-      setLastViewedDocumentId(selectedDocumentId);
-    }
-  }, [snippets.length, selectedDocumentId]);
-
-  const selectedDocument = DOCUMENTS.find(doc => doc.id === selectedDocumentId);
 
   const handleFieldChange = (fieldId: string, value: string) => {
     setFormData(prev => {
@@ -898,12 +838,6 @@ export default function App() {
           confidenceScore: 50, // Default confidence when no search criteria
         }));
         setSnippets(snippetsWithConfidence);
-        if (SNIPPET_DATABASE.length > 0) {
-          setHighlightedSection({
-            page: SNIPPET_DATABASE[0].pdfReference.page,
-            segment: SNIPPET_DATABASE[0].pdfReference.segment,
-          });
-        }
         setIsAnalyzing(false);
         // DO NOT auto-populate - user should choose manually
       } else {
@@ -942,14 +876,8 @@ export default function App() {
         ...snippet,
         confidenceScore: 50, // Default confidence when no search criteria
       }));
-      setSnippets(snippetsWithConfidence);
-      if (SNIPPET_DATABASE.length > 0) {
-        setHighlightedSection({
-          page: SNIPPET_DATABASE[0].pdfReference.page,
-          segment: SNIPPET_DATABASE[0].pdfReference.segment,
-        });
-      }
-      setIsAnalyzing(false);
+        setSnippets(snippetsWithConfidence);
+        setIsAnalyzing(false);
       // DO NOT auto-populate - user should choose manually
       return;
     }
@@ -1095,10 +1023,6 @@ export default function App() {
     setTimeout(() => {
       if (matches.length > 0) {
         setSnippets(matches);
-        setHighlightedSection({
-          page: matches[0].pdfReference.page,
-          segment: matches[0].pdfReference.segment,
-        });
         setIsAnalyzing(false);
         // Auto-fill disabled - user must manually click Accept button
       } else {
@@ -1199,9 +1123,9 @@ export default function App() {
       }
       
       const maintenanceFields = ['responsibleParty', 'maintenanceOwnerResponsibility', 'maintenanceReasoning'];
-      const filledFields = Object.entries(formData).filter(([key, value]) => {
-        return maintenanceFields.includes(key) && value && value.trim().length > 0;
-      });
+        const filledFields = Object.entries(formData).filter(([key, value]) => 
+          maintenanceFields.includes(key) && value?.trim()
+        );
 
       let matches: any[] = [];
 
@@ -1271,10 +1195,6 @@ export default function App() {
       // Show matching snippets - no auto-fill
       if (matches.length > 0) {
         setSnippets(matches);
-        setHighlightedSection({
-          page: matches[0].pdfReference.page,
-          segment: matches[0].pdfReference.segment,
-        });
         // Auto-fill disabled - user must manually click Accept button
       }
     }
@@ -1406,53 +1326,12 @@ export default function App() {
       setTimeout(() => {
         setSnippets(matches.length > 0 ? matches : SNIPPET_DATABASE.map(s => ({ ...s, confidenceScore: 30 })));
         
-        // Highlight first snippet
-        if (matches.length > 0) {
-          setHighlightedSection({
-            page: matches[0].pdfReference.page,
-            segment: matches[0].pdfReference.segment,
-          });
-        }
         setIsAnalyzing(false);
       }, 500);
     } else {
       setSnippets([]);
-      setHighlightedSection(null);
       setIsAnalyzing(false);
     }
-  };
-
-  // Preview snippet - shows ghost text (used when hovering over preview button)
-  const handlePreviewSnippet = (snippet: any) => {
-    // If snippet has no field mappings, clear the preview
-    if (!snippet.fieldMappings || Object.keys(snippet.fieldMappings).length === 0) {
-      setGhostValues({});
-      return;
-    }
-    
-    // Set all field mappings as ghost values for preview
-    // Always show ghost text, even if fields have existing values
-    const maintenanceFields = ['responsibleParty', 'maintenanceOwnerResponsibility', 'maintenanceReasoning'];
-    const newGhostValues: Record<string, string> = {};
-    
-    // Set maintenance fields as ghost values (preview only)
-    maintenanceFields.forEach((fieldId) => {
-      const snippetValue = snippet.fieldMappings[fieldId];
-      if (snippetValue) {
-        // Always set ghost value for preview (user can see what it would look like)
-        newGhostValues[fieldId] = snippetValue;
-      }
-    });
-    
-    // Apply other field mappings as ghost values if they exist
-    Object.entries(snippet.fieldMappings).forEach(([fieldId, value]) => {
-      if (!maintenanceFields.includes(fieldId)) {
-        newGhostValues[fieldId] = value as string;
-      }
-    });
-    
-    // Set all ghost values at once (this will show even if fields have existing text)
-    setGhostValues(newGhostValues);
   };
 
   const handleBack = () => {
@@ -1592,7 +1471,7 @@ export default function App() {
     
     // Accept all ghost values
     Object.entries(ghostValues).forEach(([fieldId, ghostValue]) => {
-      if (!approvedData[fieldId] || approvedData[fieldId].trim().length === 0) {
+      if (!approvedData[fieldId]?.trim()) {
         approvedData[fieldId] = ghostValue;
       }
     });
@@ -1600,7 +1479,7 @@ export default function App() {
     setFormData(approvedData);
     setGhostValues({});
     setIsAIApproved(true);
-    setAiApprovedFormData({ ...approvedData }); // Store snapshot for comparison
+    setAiApprovedFormData({ ...approvedData });
   };
 
   const handleApplySnippet = (snippet: any, keepSnippetsVisible: boolean = true) => {
@@ -1775,7 +1654,6 @@ export default function App() {
                     onClick={() => {
                       setGlobalSearchQuery('');
                       setSnippets([]);
-                      setHighlightedSection(null);
                       setIsAnalyzing(false);
                     }}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
@@ -1798,74 +1676,32 @@ export default function App() {
             </div>
           </div>
 
-          {/* Split Pane Layout */}
-          <main className="h-[calc(100vh-180px)]">
-            <ResizablePanelGroup direction="horizontal">
-              {/* Left Pane - Form Panel */}
-              <ResizablePanel defaultSize={55} minSize={30}>
-                <div className="h-full overflow-y-auto bg-white">
-                  <AgreementForm
-                    formData={formData}
-                    onFieldChange={handleFieldChange}
-                    aiMode={aiMode}
-                    ghostValues={ghostValues}
-                    onAcceptGhost={handleAcceptGhost}
-                    onFieldSearch={handleFieldSearch}
-                    onToggleAiMode={handleToggleAiMode}
-                    isAnalyzing={isAnalyzing}
-                    snippetsCount={snippets.length}
-                    onSaveDraft={handleSaveDraft}
-                    onFinish={handleFinish}
-                    onApproveAIChanges={handleApproveAIChanges}
-                    isAIApproved={isAIApproved}
-                    hasAIChanges={hasAIChanges}
-                    isEditing={isEditing}
-                    onCancel={handleBack}
-                    documents={DOCUMENTS.map(doc => ({ id: doc.id, name: doc.name }))}
-                    checkedDocuments={Array.from(checkedDocuments)}
-                    hasAIGeneratedFields={aiGeneratedFieldsMap}
-                    onDocumentCheckChange={handleDocumentCheckChange}
-                    reviewReason={reviewReason}
-                  />
-                </div>
-              </ResizablePanel>
-
-              <ResizableHandle />
-
-              {/* Right Pane - Document Viewer or Snippet List */}
-              <ResizablePanel defaultSize={45} minSize={30}>
-                {snippets.length > 0 ? (
-                  <SnippetList
-                    snippets={snippets}
-                    onApply={handleApplySnippet}
-                    onPreview={handlePreviewSnippet}
-                    onClose={() => {
-                      setSnippets([]);
-                      setGlobalSearchQuery('');
-                      setHighlightedSection(null);
-                      setIsAnalyzing(false);
-                      // Restore last viewed document (or first document by default)
-                      if (lastViewedDocumentId) {
-                        setSelectedDocumentId(lastViewedDocumentId);
-                      } else if (DOCUMENTS.length > 0) {
-                        setSelectedDocumentId(DOCUMENTS[0].id);
-                        setLastViewedDocumentId(DOCUMENTS[0].id);
-                      }
-                    }}
-                    searchQuery={globalSearchQuery}
-                    isAnalyzing={isAnalyzing}
-                    tutorialActive={showTutorial}
-                    tutorialStep={tutorialStep}
-                    tutorialAction={tutorialSteps[tutorialStep]?.autoAction}
-                  />
-                ) : (
-                  <DocumentViewer 
-                    document={selectedDocument || null}
-                    highlightedSection={highlightedSection} 
-                  />
-                )}
-              </ResizablePanel>
-            </ResizablePanelGroup>
+          {/* Single Pane Layout - Form with embedded snippets */}
+          <main className="max-w-7xl mx-auto px-6 py-8">
+            <AgreementForm
+              formData={formData}
+              onFieldChange={handleFieldChange}
+              aiMode={aiMode}
+              ghostValues={ghostValues}
+              onAcceptGhost={handleAcceptGhost}
+              onFieldSearch={handleFieldSearch}
+              onToggleAiMode={handleToggleAiMode}
+              isAnalyzing={isAnalyzing}
+              snippetsCount={snippets.length}
+              snippets={snippets}
+              onApplySnippet={handleApplySnippet}
+              onSaveDraft={handleSaveDraft}
+              onFinish={handleFinish}
+              onApproveAIChanges={handleApproveAIChanges}
+              isAIApproved={isAIApproved}
+              isEditing={isEditing}
+              onCancel={handleBack}
+              documents={DOCUMENTS.map(doc => ({ id: doc.id, name: doc.name }))}
+              checkedDocuments={Array.from(checkedDocuments)}
+              hasAIGeneratedFields={aiGeneratedFieldsMap}
+              onDocumentCheckChange={handleDocumentCheckChange}
+              reviewReason={reviewReason}
+            />
           </main>
           
           {/* Tutorial Overlay */}
@@ -1891,7 +1727,6 @@ export default function App() {
             onFinish={handleFinish}
             onApproveAIChanges={handleApproveAIChanges}
             isAIApproved={isAIApproved}
-            hasAIChanges={hasAIChanges}
             isEditing={isEditing}
             onCancel={handleBack}
             documents={DOCUMENTS.map(doc => ({ id: doc.id, name: doc.name }))}
