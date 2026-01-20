@@ -46,3 +46,6 @@ coverage/
 *.temp
 .cache/
 
+# Project specific
+HEB-Legal-OCR-main/
+
