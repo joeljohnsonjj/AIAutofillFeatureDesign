@@ -3,6 +3,7 @@ import { Search, Eye, Check, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { FormField } from '../App';
 import { GhostFormField } from './GhostFormField';
 import { AIAnalyzingAnimation } from './AIAnalyzingAnimation';
+import { Input } from './ui/input';
 
 interface PDFReference {
   page: number;
@@ -459,7 +460,19 @@ export function CategorySection({
         {/* Category Header */}
         <div className="mb-4">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-gray-900 font-bold text-xl">{title}</h2>
+            <div className="flex items-center gap-4 flex-1">
+              <h2 className="text-gray-900 font-bold text-xl">{title}</h2>
+              {category === 'maintenance' && (
+                <div className="relative flex-1 max-w-md">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Input
+                    type="text"
+                    placeholder="     Search"
+                    className="pl-9"
+                  />
+                </div>
+              )}
+            </div>
             <div className="flex items-center gap-3">
               {/* AI Analyzing Animation - Show in maintenance section when analyzing */}
               {category === 'maintenance' && aiMode && isAnalyzing && (
