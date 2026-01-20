@@ -6,6 +6,12 @@ import { TutorialOverlay } from './components/TutorialOverlay';
 import { Search, X, ArrowLeft } from 'lucide-react';
 import { saveAgreement, getAgreementById, updateAgreement } from './utils/agreementStorage';
 import type { Agreement } from './components/AgreementsLandingPage';
+import { queryObligations, transformObligationToSnippet } from './services/apiService';
+
+// Import tests for development (available in browser console)
+if (process.env.NODE_ENV === 'development') {
+  import('./services/apiService.test');
+}
 
 export interface FormField {
   id: string;
@@ -1038,6 +1044,8 @@ export default function App() {
   };
 
   const handleToggleAiMode = (newMode: boolean) => {
+    console.log('[DEBUG] handleToggleAiMode called', {newMode, currentAiMode: aiMode});
+    
     // When toggling OFF AI mode, check documents that were referenced by APPLIED snippets only
     if (!newMode && aiMode) {
       // Only check documents for snippets that were actually applied (not just viewed)
@@ -1216,6 +1224,8 @@ export default function App() {
       // Note: We intentionally DO NOT reset isAIApproved and aiApprovedFormData here
       // This ensures the "Approve AI Changes" button remains visible even when AI mode is off
     }
+    
+    console.log('[DEBUG] Setting aiMode to:', newMode);
     setAiMode(newMode);
     
     // When toggling ON AI mode, scroll to maintenance section in the form
@@ -1266,69 +1276,130 @@ export default function App() {
     handleFieldSearchWithData(fieldId, searchValue, formDataRef.current);
   };
 
-  const handleGlobalSearch = (query: string) => {
+  const handleGlobalSearch = async (query: string) => {
+    // #region agent log
+    console.log('[DEBUG] handleGlobalSearch called', {query, queryLength: query.trim().length});
+    fetch('http://127.0.0.1:7242/ingest/c69e181c-4485-4aaa-8fb9-54a919c8d97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:1275',message:'handleGlobalSearch called',data:{query,queryLength:query.trim().length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H4'})}).catch(()=>{});
+    // #endregion
+    
     setGlobalSearchQuery(query);
     
     // Show AI analyzing animation
     setIsAnalyzing(true);
     
-    // Simulate finding snippets based on search
+    // Query backend API for obligations
     if (query.trim().length > 2) {
-      const searchLower = query.toLowerCase();
-      const queryWords = searchLower.split(/\s+/).filter(w => w.length >= 2);
+      // #region agent log
+      console.log('[DEBUG] Query length check passed, calling API', {query});
+      fetch('http://127.0.0.1:7242/ingest/c69e181c-4485-4aaa-8fb9-54a919c8d97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:1282',message:'Query length check passed, calling API',data:{query},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H4'})}).catch(()=>{});
+      // #endregion
       
-      // Search across all snippets and calculate confidence scores
-      const matches = SNIPPET_DATABASE.map(snippet => {
-        let matchScore = 0;
-        let maxScore = 0;
+      try {
+        // Call backend API with the search query
+        const response = await queryObligations(query);
         
-        // Check title match
-        if (snippet.title.toLowerCase().includes(searchLower)) {
-          matchScore += 3;
-        } else if (queryWords.some(word => snippet.title.toLowerCase().includes(word))) {
-          matchScore += 1.5;
-        }
-        maxScore += 3;
+        // #region agent log
+        console.log('[DEBUG] Backend API response received', {resultsCount: response.results.length, totalObligations: response.total_obligations_found, query: response.query});
+        fetch('http://127.0.0.1:7242/ingest/c69e181c-4485-4aaa-8fb9-54a919c8d97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:1285',message:'Backend API response received',data:{resultsCount:response.results.length,totalObligations:response.total_obligations_found,query:response.query},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'})}).catch(()=>{});
+        // #endregion
         
-        // Check full text match
-        if (snippet.pdfReference.fullText?.toLowerCase().includes(searchLower)) {
-          matchScore += 2;
-        } else if (snippet.pdfReference.fullText && queryWords.some(word => 
-          snippet.pdfReference.fullText!.toLowerCase().includes(word)
-        )) {
-          matchScore += 1;
-        }
-        maxScore += 2;
+        // Transform backend results to snippet format
+        const transformedSnippets = response.results.map((obligation, index) => 
+          transformObligationToSnippet(obligation, index)
+        );
         
-        // Check field mappings match
-        const fieldMatches = Object.values(snippet.fieldMappings).filter(value => 
-          value.toLowerCase().includes(searchLower)
-        ).length;
-        if (fieldMatches > 0) {
-          matchScore += fieldMatches * 2;
-        }
-        maxScore += Object.keys(snippet.fieldMappings).length * 2;
+        // #region agent log
+        console.log('[DEBUG] Snippets transformed', {transformedCount: transformedSnippets.length, firstSnippetTitle: transformedSnippets[0]?.title});
+        fetch('http://127.0.0.1:7242/ingest/c69e181c-4485-4aaa-8fb9-54a919c8d97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:1288',message:'Snippets transformed',data:{transformedCount:transformedSnippets.length,firstSnippetTitle:transformedSnippets[0]?.title},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'})}).catch(()=>{});
+        // #endregion
         
-        // Calculate confidence (0-100)
-        const confidenceScore = maxScore > 0 
-          ? Math.min(100, Math.round((matchScore / maxScore) * 100))
-          : 0;
+        // Calculate confidence scores based on relevance
+        const snippetsWithConfidence = transformedSnippets.map((snippet, index) => {
+          // Higher confidence for earlier results (backend already ranks by relevance)
+          const baseConfidence = 95 - (index * 5);
+          const confidenceScore = Math.max(60, Math.min(100, baseConfidence));
+          
+          return {
+            ...snippet,
+            confidenceScore,
+          };
+        });
         
-        return {
-          ...snippet,
-          confidenceScore,
-          matchScore,
-        };
-      }).filter(snippet => snippet.matchScore > 0)
-        .sort((a, b) => b.confidenceScore - a.confidenceScore);
-
-      // Simulate AI processing delay
-      setTimeout(() => {
-        setSnippets(matches.length > 0 ? matches : SNIPPET_DATABASE.map(s => ({ ...s, confidenceScore: 30 })));
+        // #region agent log
+        console.log('[DEBUG] Setting snippets state with backend data', {snippetsCount: snippetsWithConfidence.length, firstSnippetId: snippetsWithConfidence[0]?.id});
+        fetch('http://127.0.0.1:7242/ingest/c69e181c-4485-4aaa-8fb9-54a919c8d97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:1304',message:'Setting snippets state with backend data',data:{snippetsCount:snippetsWithConfidence.length,firstSnippetId:snippetsWithConfidence[0]?.id},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H5'})}).catch(()=>{});
+        // #endregion
         
+        // Update snippets state
+        setSnippets(snippetsWithConfidence.length > 0 ? snippetsWithConfidence : []);
         setIsAnalyzing(false);
-      }, 500);
+        
+      } catch (error) {
+        // #region agent log
+        console.log('[DEBUG] API call failed, falling back to mock data', {error: error instanceof Error ? error.message : String(error), errorType: error?.constructor?.name});
+        fetch('http://127.0.0.1:7242/ingest/c69e181c-4485-4aaa-8fb9-54a919c8d97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:1308',message:'API call failed, falling back to mock data',data:{error:error instanceof Error?error.message:String(error),errorType:error?.constructor?.name},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1'})}).catch(()=>{});
+        // #endregion
+        
+        console.error('Error fetching obligations from backend:', error);
+        
+        // Fallback to mock data if API fails
+        const searchLower = query.toLowerCase();
+        const queryWords = searchLower.split(/\s+/).filter(w => w.length >= 2);
+        
+        const matches = SNIPPET_DATABASE.map(snippet => {
+          let matchScore = 0;
+          let maxScore = 0;
+          
+          if (snippet.title.toLowerCase().includes(searchLower)) {
+            matchScore += 3;
+          } else if (queryWords.some(word => snippet.title.toLowerCase().includes(word))) {
+            matchScore += 1.5;
+          }
+          maxScore += 3;
+          
+          if (snippet.pdfReference.fullText?.toLowerCase().includes(searchLower)) {
+            matchScore += 2;
+          } else if (snippet.pdfReference.fullText && queryWords.some(word => 
+            snippet.pdfReference.fullText!.toLowerCase().includes(word)
+          )) {
+            matchScore += 1;
+          }
+          maxScore += 2;
+          
+          const fieldMatches = Object.values(snippet.fieldMappings).filter(value => 
+            value.toLowerCase().includes(searchLower)
+          ).length;
+          if (fieldMatches > 0) {
+            matchScore += fieldMatches * 2;
+          }
+          maxScore += Object.keys(snippet.fieldMappings).length * 2;
+          
+          const confidenceScore = maxScore > 0 
+            ? Math.min(100, Math.round((matchScore / maxScore) * 100))
+            : 0;
+          
+          return {
+            ...snippet,
+            confidenceScore,
+            matchScore,
+          };
+        }).filter(snippet => snippet.matchScore > 0)
+          .sort((a, b) => b.confidenceScore - a.confidenceScore);
+        
+        // #region agent log
+        console.log('[DEBUG] Setting snippets with mock data', {mockMatchesCount: matches.length});
+        fetch('http://127.0.0.1:7242/ingest/c69e181c-4485-4aaa-8fb9-54a919c8d97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:1355',message:'Setting snippets with mock data',data:{mockMatchesCount:matches.length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1'})}).catch(()=>{});
+        // #endregion
+        
+        setSnippets(matches.length > 0 ? matches : SNIPPET_DATABASE.map(s => ({ ...s, confidenceScore: 30 })));
+        setIsAnalyzing(false);
+      }
     } else {
+      // #region agent log
+      console.log('[DEBUG] Query too short, clearing snippets', {queryLength: query.trim().length});
+      fetch('http://127.0.0.1:7242/ingest/c69e181c-4485-4aaa-8fb9-54a919c8d97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:1358',message:'Query too short, clearing snippets',data:{queryLength:query.trim().length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H4'})}).catch(()=>{});
+      // #endregion
+      
       setSnippets([]);
       setIsAnalyzing(false);
     }

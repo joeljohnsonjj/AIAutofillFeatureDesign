@@ -487,7 +487,10 @@ export function CategorySection({
                 <div className="flex items-center gap-3 animate-in fade-in slide-in-from-right duration-300">
                   <span className="text-sm text-gray-700">AI Fill</span>
                   <button
-                    onClick={() => onToggleAiMode(!aiMode)}
+                    onClick={() => {
+                      console.log('[DEBUG CategorySection] AI Fill toggle clicked', {currentAiMode: aiMode, willToggleTo: !aiMode});
+                      onToggleAiMode(!aiMode);
+                    }}
                     className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
                       aiMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-300 hover:bg-gray-400'
                     }`}
