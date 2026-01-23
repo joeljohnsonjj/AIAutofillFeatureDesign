@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { AgreementForm } from './components/AgreementForm';
 import type { Document } from './components/DocumentSelector';
 import { TutorialOverlay } from './components/TutorialOverlay';
-import { Search, X, ArrowLeft } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { saveAgreement, getAgreementById, updateAgreement } from './utils/agreementStorage';
 import type { Agreement } from './components/AgreementsLandingPage';
 import { queryObligations, transformObligationToSnippet } from './services/apiService';
@@ -1287,8 +1287,8 @@ export default function App() {
     // Show AI analyzing animation
     setIsAnalyzing(true);
     
-    // Query backend API for obligations
-    if (query.trim().length > 2) {
+    // Query backend API for obligations - only if query has content
+    if (query.trim().length > 0) {
       // #region agent log
       console.log('[DEBUG] Query length check passed, calling API', {query});
       fetch('http://127.0.0.1:7242/ingest/c69e181c-4485-4aaa-8fb9-54a919c8d97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:1282',message:'Query length check passed, calling API',data:{query},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H4'})}).catch(()=>{});
@@ -1707,46 +1707,6 @@ export default function App() {
 
       {aiMode ? (
         <>
-          {/* Search Bar */}
-          <div className="bg-white border-b border-gray-300 sticky top-0 z-20">
-            <div className="px-4 py-2.5">
-              {/* Global Search Bar */}
-              <div className="relative w-full">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search contracts for evidence... (e.g., 'maintenance responsibility')"
-                  value={globalSearchQuery}
-                  onChange={(e) => handleGlobalSearch(e.target.value)}
-                  className="w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
-                />
-                {globalSearchQuery && (
-                  <button
-                    onClick={() => {
-                      setGlobalSearchQuery('');
-                      setSnippets([]);
-                      setIsAnalyzing(false);
-                    }}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                )}
-                {globalSearchQuery && !isAnalyzing && (
-                  <div className="absolute top-full left-0 right-0 mt-2 text-sm text-red-600">
-                    {snippets.length > 0 ? (
-                      <span>
-                        Matches: "{globalSearchQuery}" - {snippets.length} snippet{snippets.length !== 1 ? 's' : ''} found
-                      </span>
-                    ) : globalSearchQuery.length > 2 ? (
-                      <span className="text-gray-500">Searching...</span>
-                    ) : null}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
           {/* Single Pane Layout - Form with embedded snippets */}
           <main className="max-w-7xl mx-auto px-6 py-8">
             <AgreementForm
@@ -1772,6 +1732,8 @@ export default function App() {
               hasAIGeneratedFields={aiGeneratedFieldsMap}
               onDocumentCheckChange={handleDocumentCheckChange}
               reviewReason={reviewReason}
+              globalSearchQuery={globalSearchQuery}
+              onGlobalSearch={handleGlobalSearch}
             />
           </main>
           

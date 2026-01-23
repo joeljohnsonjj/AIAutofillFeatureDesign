@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Search, Eye, Check, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Check, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { FormField } from '../App';
 import { GhostFormField } from './GhostFormField';
 import { AIAnalyzingAnimation } from './AIAnalyzingAnimation';
@@ -23,6 +23,11 @@ interface Snippet {
   documentId?: string;
 }
 
+interface Document {
+  id: string;
+  name: string;
+}
+
 interface CategorySectionProps {
   category: string;
   title: string;
@@ -40,6 +45,11 @@ interface CategorySectionProps {
   onApplySnippet?: (snippet: Snippet, keepSnippetsVisible?: boolean) => void;
   isAIApproved?: boolean;
   hasAIGeneratedFields?: Record<string, boolean>;
+  globalSearchQuery?: string;
+  onGlobalSearch?: (query: string) => void;
+  checkedDocuments?: string[];
+  documents?: Document[];
+  onDocumentCheckChange?: (documentId: string, checked: boolean) => void;
 }
 
 interface AIResponse {
@@ -75,14 +85,15 @@ export function CategorySection({
   onApplySnippet,
   isAIApproved = false,
   hasAIGeneratedFields = {},
+  globalSearchQuery = '',
+  onGlobalSearch,
+  checkedDocuments = [],
+  documents = [],
+  onDocumentCheckChange,
 }: CategorySectionProps) {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [aiResponses, setAiResponses] = useState<AIResponse[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [showCitations, setShowCitations] = useState(false);
+  const [localSearchQuery, setLocalSearchQuery] = useState('');
   const [showPreviewModal, setShowPreviewModal] = useState(false);
-  const [selectedPreviewResponse, setSelectedPreviewResponse] = useState<AIResponse | null>(null);
+  const [selectedPreviewResponse] = useState<AIResponse | null>(null);
   const [currentSnippetIndex, setCurrentSnippetIndex] = useState(0);
 
   // Reset snippet index when snippets change
@@ -98,16 +109,34 @@ export function CategorySection({
   const [showSuggestions, setShowSuggestions] = useState(false);
   const suggestionRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
-  // AI search functionality removed per user request
-  // The search bar in maintenance section has been completely removed
+  // Handle search query sync with parent
   useEffect(() => {
-    // Clear any existing search state since search bar is removed
-    setSearchQuery('');
-    setAiResponses([]);
-    setShowCitations(false);
-    setIsSearching(false);
-    setIsProcessing(false);
-  }, [aiMode, category]);
+    setLocalSearchQuery(globalSearchQuery || '');
+  }, [globalSearchQuery]);
+
+  // Handle search execution
+  const handleSearch = () => {
+    if (onGlobalSearch && localSearchQuery.trim()) {
+      onGlobalSearch(localSearchQuery.trim());
+    }
+  };
+
+  // Handle Enter key press in search input
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleSearch();
+    }
+  };
+
+  const handleApplyCitation = (response: AIResponse) => {
+    // Apply all field mappings from the response
+    Object.entries(response.fieldMappings).forEach(([fieldId, value]) => {
+      onFieldChange(fieldId, value);
+    });
+    setShowPreviewModal(false);
+    setLocalSearchQuery('');
+  };
 
   // Field value matches - DISABLED since search bar is removed
   // This functionality was tied to the maintenance section search bar
@@ -117,22 +146,7 @@ export function CategorySection({
     setShowSuggestions(false);
   }, [formData, activeField]);
 
-  const handleApplyCitation = (response: AIResponse) => {
-    // Apply all field mappings from the response
-    Object.entries(response.fieldMappings).forEach(([fieldId, value]) => {
-      onFieldChange(fieldId, value);
-    });
-    
-    // Close citations after applying
-    setShowCitations(false);
-    setSearchQuery('');
-    setAiResponses([]);
-  };
 
-  const handlePreviewClick = (response: AIResponse) => {
-    setSelectedPreviewResponse(response);
-    setShowPreviewModal(true);
-  };
 
   const handleSuggestionSelect = (response: AIResponse) => {
     // Apply all fields from this citation
@@ -281,6 +295,41 @@ export function CategorySection({
             'Enter any additional notes about this agreement',
             formData.notes,
             true
+          )}
+          
+          {/* Documents List with Checkboxes - At bottom of Identification section */}
+          {documents.length > 0 && (
+            <div className="mt-6 pt-6 border-gray-200" data-tutorial="documents" style={{paddingTop: '15px'}}>
+              <h3 className="text-sm font-semibold text-gray-700 mb-3">
+                Uploaded Documents {aiMode && <span className="text-xs text-gray-500 font-normal">(Select documents to filter AI snippets)</span>}
+              </h3>
+              <div className="flex flex-wrap gap-3">
+                {documents.map((doc) => (
+                  <label
+                    key={doc.id}
+                    className={`flex items-center gap-2 px-3 py-2 border rounded-lg cursor-pointer transition-colors ${
+                      checkedDocuments.includes(doc.id)
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checkedDocuments.includes(doc.id)}
+                      onChange={(e) => {
+                        if (onDocumentCheckChange) {
+                          onDocumentCheckChange(doc.id, e.target.checked);
+                        }
+                      }}
+                      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    />
+                    <span className="text-sm text-gray-700 truncate max-w-[200px]" title={doc.name}>
+                      {doc.name}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
           )}
         </>
       );
@@ -459,17 +508,59 @@ export function CategorySection({
       <div className="px-6 py-6">
         {/* Category Header */}
         <div className="mb-4">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-4 flex-1">
-              <h2 className="text-gray-900 font-bold text-xl">{title}</h2>
+            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-4 flex-1 min-w-0">
+              <h2 className="text-gray-900 font-bold text-xl flex-shrink-0">{title}</h2>
               {category === 'maintenance' && (
-                <div className="relative flex-1 max-w-md">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <Input
-                    type="text"
-                    placeholder="     Search"
-                    className="pl-9"
-                  />
+                <div className="relative flex-1 min-w-0 flex items-center gap-2">
+                  <div className="relative flex-1 min-w-0">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <Input
+                      type="text"
+                      placeholder="     Search"
+                      className="pl-9 w-full"
+                      value={localSearchQuery}
+                      onChange={(e) => setLocalSearchQuery(e.target.value)}
+                      onKeyDown={handleSearchKeyDown}
+                    />
+                  </div>
+                  {/* AI Search Button */}
+                  {onToggleAiMode && (
+                    <button
+                      onClick={() => {
+                        if (checkedDocuments.length > 0) {
+                          if (!aiMode) {
+                            // If AI mode is off, turn it on
+                            onToggleAiMode(true);
+                            // If there's a search query, trigger search
+                            if (localSearchQuery.trim()) {
+                              handleSearch();
+                            }
+                          } else {
+                            // If AI mode is on and there's a search query, trigger search
+                            // Otherwise, turn off AI mode
+                            if (localSearchQuery.trim()) {
+                              handleSearch();
+                            } else {
+                              onToggleAiMode(false);
+                            }
+                          }
+                        }
+                      }}
+                      disabled={checkedDocuments.length === 0}
+                      className={`px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2 flex-shrink-0 ${
+                        checkedDocuments.length === 0
+                          ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                          : aiMode
+                          ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
+                          : 'bg-gray-300 text-gray-700 hover:bg-gray-400'
+                      }`}
+                      title={checkedDocuments.length === 0 ? 'Please select at least one document' : aiMode ? 'AI Search Active - Click to search again or clear search to turn off' : 'Click to start AI Search'}
+                    >
+                      <Search className="w-4 h-4" />
+                      AI Search
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -482,120 +573,9 @@ export function CategorySection({
               )}
               {/* Snippet Count - Show when not analyzing and snippets are available */}
               {category === 'maintenance' && aiMode && !isAnalyzing && snippetsCount > 0 }
-              {/* AI Fill Toggle - Show in maintenance section */}
-              {category === 'maintenance' && onToggleAiMode && (
-                <div className="flex items-center gap-3 animate-in fade-in slide-in-from-right duration-300">
-                  <span className="text-sm text-gray-700">AI Fill</span>
-                  <button
-                    onClick={() => {
-                      console.log('[DEBUG CategorySection] AI Fill toggle clicked', {currentAiMode: aiMode, willToggleTo: !aiMode});
-                      onToggleAiMode(!aiMode);
-                    }}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                      aiMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-300 hover:bg-gray-400'
-                    }`}
-                  >
-                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                      aiMode ? 'translate-x-6' : 'translate-x-1'
-                    }`} />
-                  </button>
-                  <span className={`text-xs font-medium ${aiMode ? 'text-red-600' : 'text-gray-500'}`}>
-                    {aiMode ? 'ON' : 'OFF'}
-                  </span>
-                </div>
-              )}
             </div>
           </div>
           
-          {/* AI Search Bar - REMOVED per user request */}
-          {false && category === 'maintenance' && !aiMode && (
-            <div className="mb-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <div className={`relative ${isSearching ? 'rotating-border-container' : ''}`}>
-                  <input
-                    type="text"
-                    placeholder="Search AI suggestions for this section..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent relative z-10 bg-white"
-                  />
-                  {isSearching && (
-                    <div className="rotating-border"></div>
-                  )}
-                </div>
-              </div>
-              
-              {/* Loading indicator */}
-              {isProcessing && (
-                <div className="mt-2 text-sm text-gray-500 flex items-center gap-2">
-                  <div className="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
-                  Processing AI suggestions...
-                </div>
-              )}
-              
-              {/* Citations below search box */}
-              {showCitations && aiResponses.length > 0 && (
-                <div className="mt-3 bg-purple-50 border border-purple-200 rounded-lg p-4">
-                  <div className="text-sm text-gray-700 mb-3 flex items-center justify-between">
-                    <span className="font-medium">
-                      {aiResponses.length} result{aiResponses.length !== 1 ? 's' : ''} found
-                    </span>
-                    <button
-                      onClick={() => {
-                        setShowCitations(false);
-                        setSearchQuery('');
-                        setAiResponses([]);
-                      }}
-                      className="text-gray-500 hover:text-gray-700"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    {aiResponses.map((response, index) => (
-                      <div 
-                        key={response.id} 
-                        className="bg-white border border-purple-200 rounded-lg p-3 flex items-start justify-between gap-3"
-                      >
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium text-gray-900 mb-1">
-                            [{index + 1}] {response.title}
-                          </div>
-                          {response.citation && (
-                            <div className="text-xs text-gray-500 italic">
-                              {response.citation}
-                            </div>
-                          )}
-                        </div>
-                        
-                        <div className="flex items-center gap-1 flex-shrink-0">
-                          {/* Preview Button */}
-                          <button
-                            onClick={() => handlePreviewClick(response)}
-                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                            title="Preview PDF references"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
-                          
-                          {/* Check/Apply Button */}
-                          <button
-                            onClick={() => handleApplyCitation(response)}
-                            className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                            title="Apply to form"
-                          >
-                            <Check className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
         </div>
 
         {/* Form Fields */}

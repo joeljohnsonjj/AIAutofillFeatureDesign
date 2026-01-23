@@ -46,6 +46,8 @@ interface AgreementFormProps {
   onDocumentCheckChange?: (documentId: string, checked: boolean) => void;
   hasAIGeneratedFields?: Record<string, boolean>;
   reviewReason?: string;
+  globalSearchQuery?: string;
+  onGlobalSearch?: (query: string) => void;
 }
 
 export function AgreementForm({ 
@@ -70,6 +72,8 @@ export function AgreementForm({
   onDocumentCheckChange,
   hasAIGeneratedFields = {},
   reviewReason,
+  globalSearchQuery = '',
+  onGlobalSearch,
 }: AgreementFormProps) {
   // Determine if Finish button should be enabled
   // Finish is always enabled now (no ghost values or approval needed)
@@ -109,6 +113,10 @@ export function AgreementForm({
           onFieldChange={onFieldChange}
           isAIApproved={isAIApproved}
           hasAIGeneratedFields={hasAIGeneratedFields}
+          documents={documents}
+          checkedDocuments={checkedDocuments}
+          onDocumentCheckChange={onDocumentCheckChange}
+          aiMode={aiMode}
         />
 
         {/* Maintenance Section */}
@@ -133,46 +141,14 @@ export function AgreementForm({
           onApplySnippet={onApplySnippet}
           isAIApproved={isAIApproved}
           hasAIGeneratedFields={hasAIGeneratedFields}
+          globalSearchQuery={globalSearchQuery}
+          onGlobalSearch={onGlobalSearch}
+          checkedDocuments={checkedDocuments}
         />
       </div>
 
-      {/* Documents List with Checkboxes - Always visible when documents exist */}
-      {documents.length > 0 && (
-        <div className="border-t border-gray-200 px-6 py-4" data-tutorial="documents">
-          <h3 className="text-sm font-semibold text-gray-700 mb-3">
-            Uploaded Documents {aiMode && <span className="text-xs text-gray-500 font-normal">(Select documents to filter AI snippets)</span>}
-          </h3>
-          <div className="flex flex-wrap gap-3">
-            {documents.map((doc) => (
-              <label
-                key={doc.id}
-                className={`flex items-center gap-2 px-3 py-2 border rounded-lg cursor-pointer transition-colors ${
-                  checkedDocuments.includes(doc.id)
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-gray-300 hover:bg-gray-50'
-                }`}
-              >
-                <input
-                  type="checkbox"
-                  checked={checkedDocuments.includes(doc.id)}
-                  onChange={(e) => {
-                    if (onDocumentCheckChange) {
-                      onDocumentCheckChange(doc.id, e.target.checked);
-                    }
-                  }}
-                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                />
-                <span className="text-sm text-gray-700 truncate max-w-[200px]" title={doc.name}>
-                  {doc.name}
-                </span>
-              </label>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Footer Buttons */}
-      <div className="border-t border-gray-200 px-6 py-4 flex items-center justify-between">
+      <div className="border-gray-200 px-6 py-2 flex items-center justify-between">
         <button 
           onClick={onCancel}
           className="px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-md"
