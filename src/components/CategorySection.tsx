@@ -365,8 +365,28 @@ export function CategorySection({
               {/* Main Card Container */}
               <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
                 {/* Header Section */}
-                <div className="px-4 py-3 border-b border-gray-200 bg-gray-50">
+                <div className="px-4 py-3 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
                   <h3 className="text-sm font-bold text-gray-900">AI interpretations from agreement</h3>
+                  {/* Navigation buttons in top right */}
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => setCurrentSnippetIndex((prev) => (prev - 1 + snippets.length) % snippets.length)}
+                      disabled={snippets.length <= 1}
+                      className="p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <ChevronLeft className="w-5 h-5" />
+                    </button>
+                    <span className="text-sm text-gray-600 font-medium">
+                      {currentSnippetIndex + 1} of {snippets.length}
+                    </span>
+                    <button
+                      onClick={() => setCurrentSnippetIndex((prev) => (prev + 1) % snippets.length)}
+                      disabled={snippets.length <= 1}
+                      className="p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <ChevronRight className="w-5 h-5" />
+                    </button>
+                  </div>
                 </div>
 
                 {/* Content Section */}
@@ -417,27 +437,8 @@ export function CategorySection({
                       )}
                     </div>
 
-                    {/* Footer with Pagination and Accept Button */}
-                    <div className="mt-4 pt-4 border-gray-200 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <button
-                          onClick={() => setCurrentSnippetIndex((prev) => (prev - 1 + snippets.length) % snippets.length)}
-                          disabled={snippets.length <= 1}
-                          className="p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        >
-                          <ChevronLeft className="w-5 h-5" />
-                        </button>
-                        <span className="text-sm text-gray-600 font-medium">
-                          {currentSnippetIndex + 1} of {snippets.length} rows
-                        </span>
-                        <button
-                          onClick={() => setCurrentSnippetIndex((prev) => (prev + 1) % snippets.length)}
-                          disabled={snippets.length <= 1}
-                          className="p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        >
-                          <ChevronRight className="w-5 h-5" />
-                        </button>
-                      </div>
+                    {/* Footer with Accept Button */}
+                    <div className="mt-4 pt-4 border-t border-gray-200 flex items-center justify-end">
                       <button
                         onClick={() => {
                           if (onApplySnippet && currentSnippet) {
