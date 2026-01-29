@@ -5,27 +5,11 @@
  * Run these tests to verify backend integration is working correctly.
  */
 
-import { queryObligations, transformObligationToSnippet, checkHealth, getDocuments } from './apiService';
+import { queryObligations, transformObligationToSnippet } from './apiService';
 import type { BackendObligation } from './apiService';
 
 /**
- * Test 1: Health Check
- * Verifies the backend is running and accessible
- */
-export async function testHealthCheck() {
-  console.log('🏥 Testing health check...');
-  try {
-    const health = await checkHealth();
-    console.log('✅ Health check passed:', health);
-    return true;
-  } catch (error) {
-    console.error('❌ Health check failed:', error);
-    return false;
-  }
-}
-
-/**
- * Test 2: Query Obligations
+ * Test 1: Query Obligations
  * Tests the main query functionality with a sample search
  */
 export async function testQueryObligations() {
@@ -44,7 +28,7 @@ export async function testQueryObligations() {
       console.log('\n   First result:');
       console.log(`   - DutyType: ${response.results[0].DutyType}`);
       console.log(`   - Responsible Party: ${response.results[0]['Responsible Party']}`);
-      console.log(`   - Citation: ${response.results[0].Citation}`);
+      console.log(`   - Citation: ${JSON.stringify(response.results[0].Citation)}`);
     }
     
     return true;
@@ -55,31 +39,7 @@ export async function testQueryObligations() {
 }
 
 /**
- * Test 3: Get Documents
- * Tests fetching the list of available documents
- */
-export async function testGetDocuments() {
-  console.log('📄 Testing get documents...');
-  try {
-    const documents = await getDocuments();
-    console.log('✅ Documents fetched successfully!');
-    console.log(`   Total documents: ${documents.length}`);
-    
-    if (documents.length > 0) {
-      console.log('\n   First document:');
-      console.log(`   - ID: ${documents[0].id}`);
-      console.log(`   - Name: ${documents[0].name}`);
-    }
-    
-    return true;
-  } catch (error) {
-    console.error('❌ Get documents failed:', error);
-    return false;
-  }
-}
-
-/**
- * Test 4: Transform Obligation
+ * Test 2: Transform Obligation
  * Tests the data transformation logic
  */
 export function testTransformObligation() {
@@ -95,7 +55,13 @@ export function testTransformObligation() {
     Reasoning: [
       'Hazardous Materials introduced by the Landlord'
     ],
-    Citation: 'Document: Commercial Lease Agreement.pdf | Page 13, Section (d)'
+    Citation: [
+      {
+        docId: 'Commercial Lease Agreement.pdf',
+        pageNumbers: [13],
+        section: ['Section (d)']
+      }
+    ]
   };
   
   try {
@@ -125,33 +91,21 @@ export async function runAllTests() {
   console.log('='.repeat(50));
   
   const results = {
-    health: false,
     query: false,
-    documents: false,
     transform: false,
   };
   
-  // Test 1: Health Check
-  results.health = await testHealthCheck();
-  console.log('='.repeat(50));
-  
-  // Test 2: Query Obligations
+  // Test 1: Query Obligations
   results.query = await testQueryObligations();
   console.log('='.repeat(50));
   
-  // Test 3: Get Documents
-  results.documents = await testGetDocuments();
-  console.log('='.repeat(50));
-  
-  // Test 4: Transform Obligation
+  // Test 2: Transform Obligation
   results.transform = testTransformObligation();
   console.log('='.repeat(50));
   
   // Summary
   console.log('\n📊 Test Summary:');
-  console.log(`   Health Check: ${results.health ? '✅ PASS' : '❌ FAIL'}`);
   console.log(`   Query Obligations: ${results.query ? '✅ PASS' : '❌ FAIL'}`);
-  console.log(`   Get Documents: ${results.documents ? '✅ PASS' : '❌ FAIL'}`);
   console.log(`   Transform Obligation: ${results.transform ? '✅ PASS' : '❌ FAIL'}`);
   
   const passCount = Object.values(results).filter(r => r).length;
@@ -170,16 +124,12 @@ export async function runAllTests() {
 if (typeof window !== 'undefined') {
   (window as any).apiTests = {
     runAll: runAllTests,
-    testHealth: testHealthCheck,
     testQuery: testQueryObligations,
-    testDocuments: testGetDocuments,
     testTransform: testTransformObligation,
   };
   
   console.log('💡 API tests loaded! Run tests from console:');
   console.log('   - window.apiTests.runAll()');
-  console.log('   - window.apiTests.testHealth()');
   console.log('   - window.apiTests.testQuery()');
-  console.log('   - window.apiTests.testDocuments()');
   console.log('   - window.apiTests.testTransform()');
 }

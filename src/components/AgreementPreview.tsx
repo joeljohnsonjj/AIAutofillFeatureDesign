@@ -1,4 +1,4 @@
-﻿import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { ArrowLeft, FileText, Building2, FileCheck, File, Trash2 } from 'lucide-react';
 import { Button } from './ui/button';
@@ -9,9 +9,8 @@ import { useState } from 'react';
 
 // All available documents (for reference)
 const ALL_DOCUMENTS = [
-  { id: 'doc-1', name: 'land-reports-2025-04-21T10_19_42.23YZ.pdf' },
-  { id: 'doc-2', name: 'lease-agreement-2024.pdf' },
-  { id: 'doc-3', name: 'maintenance-contract-2025.pdf' },
+  { id: 'doc-1', name: 'Commercial Lease Agreement - Buyer Triple Net.pdf' },
+  { id: 'doc-2', name: 'Commercial Rental Agreement Form.pdf' },
 ];
 
 // Helper function to get file type icon

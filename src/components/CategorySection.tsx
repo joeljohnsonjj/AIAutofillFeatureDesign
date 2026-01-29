@@ -116,8 +116,17 @@ export function CategorySection({
 
   // Handle search execution
   const handleSearch = () => {
-    if (onGlobalSearch && localSearchQuery.trim()) {
-      onGlobalSearch(localSearchQuery.trim());
+    console.log('[DEBUG CategorySection] handleSearch called', { 
+      onGlobalSearch: !!onGlobalSearch, 
+      localSearchQuery,
+      checkedDocuments: checkedDocuments.length 
+    });
+    if (onGlobalSearch) {
+      // Always call onGlobalSearch, even if query is empty (per requirements)
+      console.log('[DEBUG CategorySection] Calling onGlobalSearch with query:', localSearchQuery || '');
+      onGlobalSearch(localSearchQuery || '');
+    } else {
+      console.warn('[DEBUG CategorySection] onGlobalSearch is not defined!');
     }
   };
 
@@ -527,24 +536,38 @@ export function CategorySection({
                   {/* AI Search Button */}
                   {onToggleAiMode && (
                     <button
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        console.log('[DEBUG CategorySection] AI Search button clicked', { 
+                          checkedDocuments: checkedDocuments.length,
+                          aiMode,
+                          onGlobalSearch: !!onGlobalSearch,
+                          localSearchQuery,
+                          onToggleAiMode: !!onToggleAiMode
+                        });
+                        
+                        // Always trigger search when AI Search button is clicked (even if query is empty)
+                        // But only if documents are selected
                         if (checkedDocuments.length > 0) {
+                          // Trigger search immediately - onGlobalSearch is now always available
+                          console.log('[DEBUG CategorySection] Triggering search', {
+                            aiMode,
+                            hasOnGlobalSearch: !!onGlobalSearch,
+                            localSearchQuery
+                          });
+                          
                           if (!aiMode) {
-                            // If AI mode is off, turn it on
+                            // If AI mode is off, turn it on first
+                            console.log('[DEBUG CategorySection] Turning on AI mode');
                             onToggleAiMode(true);
-                            // If there's a search query, trigger search
-                            if (localSearchQuery.trim()) {
-                              handleSearch();
-                            }
-                          } else {
-                            // If AI mode is on and there's a search query, trigger search
-                            // Otherwise, turn off AI mode
-                            if (localSearchQuery.trim()) {
-                              handleSearch();
-                            } else {
-                              onToggleAiMode(false);
-                            }
                           }
+                          
+                          // Always trigger search (onGlobalSearch is now always available)
+                          handleSearch();
+                        } else {
+                          console.warn('[DEBUG CategorySection] Cannot search - no documents selected');
+                          alert('Please select at least one document before searching');
                         }
                       }}
                       disabled={checkedDocuments.length === 0}
@@ -555,7 +578,7 @@ export function CategorySection({
                           ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
                           : 'bg-gray-300 text-gray-700 hover:bg-gray-400'
                       }`}
-                      title={checkedDocuments.length === 0 ? 'Please select at least one document' : aiMode ? 'AI Search Active - Click to search again or clear search to turn off' : 'Click to start AI Search'}
+                      title={checkedDocuments.length === 0 ? 'Please select at least one document' : 'Click to search'}
                     >
                       <Search className="w-4 h-4" />
                       AI Search

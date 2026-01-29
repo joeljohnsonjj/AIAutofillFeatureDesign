@@ -30,7 +30,7 @@ export interface AISuggestion {
 const SNIPPET_DATABASE = [
   {
     id: '1',
-    documentId: 'doc-1', // land-reports-2025-04-21T10_19_42.23YZ.pdf
+    documentId: 'doc-1', // Commercial Lease Agreement - Buyer Triple Net.pdf
     title: 'Owner Responsibility - Structural & Systems',
     pdfReference: {
       page: 12,
@@ -98,7 +98,7 @@ const SNIPPET_DATABASE = [
   },
   {
     id: '2',
-    documentId: 'doc-2', // lease-agreement-2024.pdf
+    documentId: 'doc-2', // Commercial Rental Agreement Form.pdf
     title: 'Triple Net (NNN) Lease Structure',
     pdfReference: {
       page: 8,
@@ -149,7 +149,7 @@ const SNIPPET_DATABASE = [
   },
   {
     id: '3',
-    documentId: 'doc-1', // land-reports-2025-04-21T10_19_42.23YZ.pdf
+    documentId: 'doc-1', // Commercial Lease Agreement - Buyer Triple Net.pdf
     title: 'Shared Responsibility Framework',
     pdfReference: {
       page: 5,
@@ -182,7 +182,7 @@ const SNIPPET_DATABASE = [
   },
   {
     id: '4',
-    documentId: 'doc-2', // lease-agreement-2024.pdf
+    documentId: 'doc-2', // Commercial Rental Agreement Form.pdf
     title: 'Full Service Lease Agreement',
     pdfReference: {
       page: 15,
@@ -214,42 +214,8 @@ const SNIPPET_DATABASE = [
     matchedFields: ['Responsible Party', 'Maintenance Owner Responsibility', 'Legal Notes'],
   },
   {
-    id: '5',
-    documentId: 'doc-3', // maintenance-contract-2025.pdf
-    title: 'Percentage Lease with Joint Maintenance',
-    pdfReference: {
-      page: 19,
-      segment: 'Joint maintenance arrangement',
-      fullText: 'ARTICLE V - PERCENTAGE LEASE TERMS\n\nSection 5.1: Maintenance Cost Sharing\nThis percentage lease includes a Joint maintenance arrangement where costs are shared proportionally based on revenue percentages as outlined in Schedule C.\n\nSection 5.2: Responsibility Allocation\nLandlord handles major structural and compliance items while Tenant manages operational maintenance proportional to their lease percentage.',
-      highlights: [
-        { 
-          text: 'Joint maintenance arrangement', 
-          field: 'Responsible Party',
-          color: 'bg-blue-200'
-        },
-        { 
-          text: 'major structural and compliance items', 
-          field: 'Maintenance Owner Responsibility',
-          color: 'bg-green-200'
-        },
-        { 
-          text: 'percentage lease', 
-          field: 'Legal Notes',
-          color: 'bg-yellow-200'
-        }
-      ]
-    },
-    fieldMappings: {
-      responsibleParty: 'Joint (Proportional)',
-      maintenanceOwnerResponsibility: 'Major structural maintenance and regulatory compliance',
-      maintenanceReasoning: 'Percentage lease structure per Section 5.1 establishes proportional cost sharing with landlord covering major structural items and compliance requirements',
-    },
-    matchedFields: ['Responsible Party', 'Maintenance Owner Responsibility', 'Legal Notes'],
-    status: 'deleted', // Document was removed
-  },
-  {
     id: '6',
-    documentId: 'doc-1', // Primary document
+    documentId: 'doc-1', // Commercial Lease Agreement - Buyer Triple Net.pdf
     title: 'Multi-Document Cross-Reference - Insurance Requirements',
     pdfReference: {
       page: 7,
@@ -271,7 +237,7 @@ const SNIPPET_DATABASE = [
       documentReferences: [
         {
           documentId: 'doc-2',
-          documentName: 'lease-agreement-2024.pdf',
+          documentName: 'Commercial Rental Agreement Form.pdf',
           pageNumber: 22,
           fullText: 'ARTICLE VI - INSURANCE PROVISIONS (CONTINUED)\n\nSection 6.3: Tenant Insurance Obligations\nAs referenced in the primary lease document Section 2.1, the Tenant shall maintain property insurance covering all tenant improvements and personal property. The Tenant must also carry business interruption insurance with a minimum 12-month coverage period.\n\nSection 6.4: Certificate Requirements\nTenant must provide certificates of insurance to the Landlord annually, naming the Landlord as additional insured on all policies.',
           highlights: [
@@ -282,24 +248,6 @@ const SNIPPET_DATABASE = [
             },
             {
               text: 'business interruption insurance with a minimum 12-month coverage period',
-              field: 'Legal Notes',
-              color: 'bg-yellow-200'
-            }
-          ]
-        },
-        {
-          documentId: 'doc-3',
-          documentName: 'maintenance-contract-2025.pdf',
-          pageNumber: 5,
-          fullText: 'SCHEDULE A - MAINTENANCE INSURANCE REQUIREMENTS\n\nSection A.1: Contractor Insurance\nAll maintenance contractors engaged by either party must carry workers compensation insurance and general liability coverage of at least $1,000,000 per occurrence as stipulated in the primary lease agreement Section 2.1.\n\nSection A.2: Proof of Coverage\nContractors must provide current certificates of insurance before commencing any work on the premises. The Property Owner shall verify all contractor insurance compliance.',
-          highlights: [
-            {
-              text: 'Property Owner shall verify all contractor insurance compliance',
-              field: 'Maintenance Owner Responsibility',
-              color: 'bg-green-200'
-            },
-            {
-              text: 'general liability coverage of at least $1,000,000 per occurrence',
               field: 'Legal Notes',
               color: 'bg-yellow-200'
             }
@@ -320,24 +268,17 @@ const SNIPPET_DATABASE = [
 const DOCUMENTS: Document[] = [
   {
     id: 'doc-1',
-    name: 'land-reports-2025-04-21T10_19_42.23YZ.pdf',
+    name: 'Commercial Lease Agreement - Buyer Triple Net.pdf',
     uploadDate: '12/11/2025',
     uploadedBy: 'svs. team_v24.r2.f.17',
     totalPages: 25,
   },
   {
     id: 'doc-2',
-    name: 'lease-agreement-2024.pdf',
+    name: 'Commercial Rental Agreement Form.pdf',
     uploadDate: '11/15/2024',
     uploadedBy: 'admin',
     totalPages: 18,
-  },
-  {
-    id: 'doc-3',
-    name: 'maintenance-contract-2025.pdf',
-    uploadDate: '01/20/2025',
-    uploadedBy: 'legal.team',
-    totalPages: 32,
   },
 ];
 
@@ -1118,93 +1059,10 @@ export default function App() {
         return; // Don't enable AI mode
       }
       
-      // Filter snippets to only show those from selected documents
-      const selectedDocIds = Array.from(selectedDocs);
-      let availableSnippets = SNIPPET_DATABASE.filter(snippet => {
-        const snippetDocId = snippet.documentId;
-        return snippetDocId && selectedDocIds.includes(snippetDocId);
-      });
-      
-      if (availableSnippets.length === 0) {
-        alert('No snippets found in the selected documents. Please select different documents.');
-        return; // Don't enable AI mode
-      }
-      
-      const maintenanceFields = ['responsibleParty', 'maintenanceOwnerResponsibility', 'maintenanceReasoning'];
-        const filledFields = Object.entries(formData).filter(([key, value]) => 
-          maintenanceFields.includes(key) && value?.trim()
-        );
-
-      let matches: any[] = [];
-
-      if (filledFields.length > 0) {
-        // Find snippets that match the pre-filled fields with fuzzy/partial matching
-        // Only search within available snippets from selected documents
-        matches = availableSnippets.filter(snippet => {
-          let matchScore = 0;
-          filledFields.forEach(([fieldId, fieldValue]) => {
-            const snippetValue = snippet.fieldMappings[fieldId as keyof typeof snippet.fieldMappings];
-            if (snippetValue) {
-              const fieldLower = fieldValue.toLowerCase().trim();
-              const snippetLower = snippetValue.toLowerCase();
-              
-              // Exact match
-              if (snippetLower === fieldLower) {
-                matchScore += 3;
-              }
-              // Contains full field value
-              else if (snippetLower.includes(fieldLower)) {
-                matchScore += 2;
-              }
-              // Partial match - check if any significant words match
-              else {
-                const fieldWords = fieldLower.split(/\s+/).filter(w => w.length > 2);
-                const matchingWords = fieldWords.filter(word => snippetLower.includes(word));
-                if (matchingWords.length > 0) {
-                  matchScore += matchingWords.length / fieldWords.length; // Partial score
-                }
-              }
-            }
-          });
-          return matchScore > 0; // At least some match
-        });
-
-        // Sort by match score (better matches first)
-        matches.sort((a, b) => {
-          let scoreA = 0;
-          let scoreB = 0;
-          filledFields.forEach(([fieldId, fieldValue]) => {
-            const fieldLower = fieldValue.toLowerCase().trim();
-            if (a.fieldMappings[fieldId]?.toLowerCase().includes(fieldLower)) scoreA++;
-            if (b.fieldMappings[fieldId]?.toLowerCase().includes(fieldLower)) scoreB++;
-          });
-          return scoreB - scoreA;
-        });
-        
-        // Add confidence scores to matches based on match quality
-        matches = matches.map((snippet, index) => ({
-          ...snippet,
-          confidenceScore: Math.max(60, 100 - (index * 5)), // Higher confidence for better matches
-        }));
-      } else {
-        // No fields filled - show all available snippets from selected documents
-        matches = availableSnippets.map(snippet => ({
-          ...snippet,
-          confidenceScore: 50, // Default confidence when no search criteria
-        }));
-      }
-
-      // Ensure all snippets have confidence scores (fallback)
-      matches = matches.map(snippet => ({
-        ...snippet,
-        confidenceScore: snippet.confidenceScore !== undefined ? snippet.confidenceScore : 50,
-      }));
-
-      // Show matching snippets - no auto-fill
-      if (matches.length > 0) {
-        setSnippets(matches);
-        // Auto-fill disabled - user must manually click Accept button
-      }
+      // Don't set snippets from mock data here - let the API call handle it
+      // The API will be called when handleSearch() is invoked from the button click
+      // Clear any existing snippets to show loading state
+      setSnippets([]);
     }
 
     // When toggling OFF AI mode, convert all ghost values to actual values
@@ -1277,9 +1135,15 @@ export default function App() {
   };
 
   const handleGlobalSearch = async (query: string) => {
+    console.log('[DEBUG App.tsx] handleGlobalSearch called', {
+      query, 
+      queryLength: query.trim().length, 
+      checkedDocuments: Array.from(checkedDocuments),
+      checkedDocumentsCount: checkedDocuments.size
+    });
+    
     // #region agent log
-    console.log('[DEBUG] handleGlobalSearch called', {query, queryLength: query.trim().length});
-    fetch('http://127.0.0.1:7242/ingest/c69e181c-4485-4aaa-8fb9-54a919c8d97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:1275',message:'handleGlobalSearch called',data:{query,queryLength:query.trim().length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H4'})}).catch(()=>{});
+    fetch('http://127.0.0.1:7242/ingest/c69e181c-4485-4aaa-8fb9-54a919c8d97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:1275',message:'handleGlobalSearch called',data:{query,queryLength:query.trim().length,checkedDocuments:Array.from(checkedDocuments)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H4'})}).catch(()=>{});
     // #endregion
     
     setGlobalSearchQuery(query);
@@ -1287,119 +1151,97 @@ export default function App() {
     // Show AI analyzing animation
     setIsAnalyzing(true);
     
-    // Query backend API for obligations - only if query has content
-    if (query.trim().length > 0) {
+    console.log('[DEBUG App.tsx] setIsAnalyzing(true) called');
+    
+    // Map checked document IDs to document names for API
+    const documentNames = Array.from(checkedDocuments)
+      .map(docId => {
+        const doc = DOCUMENTS.find(d => d.id === docId);
+        return doc ? doc.name : null;
+      })
+      .filter((name): name is string => name !== null);
+    
+    // #region agent log
+    console.log('[DEBUG] Calling API with query and document names', {query, documentNames});
+    fetch('http://127.0.0.1:7242/ingest/c69e181c-4485-4aaa-8fb9-54a919c8d97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:1282',message:'Calling API with query and document names',data:{query,documentNames},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H4'})}).catch(()=>{});
+    // #endregion
+    
+    try {
+      // Call backend API with the search query and selected documents
+      // API should be called even if query is empty (per requirements)
+      console.log('[DEBUG App.tsx] About to call queryObligations', {
+        query: query || '',
+        documentNames,
+        documentNamesLength: documentNames.length
+      });
+      const response = await queryObligations(query || '', documentNames.length > 0 ? documentNames : undefined);
+      console.log('[DEBUG App.tsx] queryObligations response received', {
+        resultsCount: response.results?.length,
+        totalObligations: response.total_obligations_found
+      });
+      
       // #region agent log
-      console.log('[DEBUG] Query length check passed, calling API', {query});
-      fetch('http://127.0.0.1:7242/ingest/c69e181c-4485-4aaa-8fb9-54a919c8d97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:1282',message:'Query length check passed, calling API',data:{query},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H4'})}).catch(()=>{});
+      console.log('[DEBUG] Backend API response received', {resultsCount: response.results.length, totalObligations: response.total_obligations_found, query: response.query});
+      fetch('http://127.0.0.1:7242/ingest/c69e181c-4485-4aaa-8fb9-54a919c8d97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:1285',message:'Backend API response received',data:{resultsCount:response.results.length,totalObligations:response.total_obligations_found,query:response.query},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'})}).catch(()=>{});
       // #endregion
       
-      try {
-        // Call backend API with the search query
-        const response = await queryObligations(query);
+      // Transform backend results to snippet format
+      const transformedSnippets = response.results.map((obligation, index) => 
+        transformObligationToSnippet(obligation, index)
+      );
+      
+      // #region agent log
+      console.log('[DEBUG] Snippets transformed', {transformedCount: transformedSnippets.length, firstSnippetTitle: transformedSnippets[0]?.title});
+      fetch('http://127.0.0.1:7242/ingest/c69e181c-4485-4aaa-8fb9-54a919c8d97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:1288',message:'Snippets transformed',data:{transformedCount:transformedSnippets.length,firstSnippetTitle:transformedSnippets[0]?.title},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'})}).catch(()=>{});
+      // #endregion
+      
+      // Calculate confidence scores based on relevance
+      const snippetsWithConfidence = transformedSnippets.map((snippet, index) => {
+        // Higher confidence for earlier results (backend already ranks by relevance)
+        const baseConfidence = 95 - (index * 5);
+        const confidenceScore = Math.max(60, Math.min(100, baseConfidence));
         
-        // #region agent log
-        console.log('[DEBUG] Backend API response received', {resultsCount: response.results.length, totalObligations: response.total_obligations_found, query: response.query});
-        fetch('http://127.0.0.1:7242/ingest/c69e181c-4485-4aaa-8fb9-54a919c8d97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:1285',message:'Backend API response received',data:{resultsCount:response.results.length,totalObligations:response.total_obligations_found,query:response.query},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'})}).catch(()=>{});
-        // #endregion
-        
-        // Transform backend results to snippet format
-        const transformedSnippets = response.results.map((obligation, index) => 
-          transformObligationToSnippet(obligation, index)
-        );
-        
-        // #region agent log
-        console.log('[DEBUG] Snippets transformed', {transformedCount: transformedSnippets.length, firstSnippetTitle: transformedSnippets[0]?.title});
-        fetch('http://127.0.0.1:7242/ingest/c69e181c-4485-4aaa-8fb9-54a919c8d97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:1288',message:'Snippets transformed',data:{transformedCount:transformedSnippets.length,firstSnippetTitle:transformedSnippets[0]?.title},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'})}).catch(()=>{});
-        // #endregion
-        
-        // Calculate confidence scores based on relevance
-        const snippetsWithConfidence = transformedSnippets.map((snippet, index) => {
-          // Higher confidence for earlier results (backend already ranks by relevance)
-          const baseConfidence = 95 - (index * 5);
-          const confidenceScore = Math.max(60, Math.min(100, baseConfidence));
-          
-          return {
-            ...snippet,
-            confidenceScore,
-          };
-        });
-        
-        // #region agent log
-        console.log('[DEBUG] Setting snippets state with backend data', {snippetsCount: snippetsWithConfidence.length, firstSnippetId: snippetsWithConfidence[0]?.id});
-        fetch('http://127.0.0.1:7242/ingest/c69e181c-4485-4aaa-8fb9-54a919c8d97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:1304',message:'Setting snippets state with backend data',data:{snippetsCount:snippetsWithConfidence.length,firstSnippetId:snippetsWithConfidence[0]?.id},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H5'})}).catch(()=>{});
-        // #endregion
-        
-        // Update snippets state
-        setSnippets(snippetsWithConfidence.length > 0 ? snippetsWithConfidence : []);
-        setIsAnalyzing(false);
-        
-      } catch (error) {
-        // #region agent log
-        console.log('[DEBUG] API call failed, falling back to mock data', {error: error instanceof Error ? error.message : String(error), errorType: error?.constructor?.name});
-        fetch('http://127.0.0.1:7242/ingest/c69e181c-4485-4aaa-8fb9-54a919c8d97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:1308',message:'API call failed, falling back to mock data',data:{error:error instanceof Error?error.message:String(error),errorType:error?.constructor?.name},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1'})}).catch(()=>{});
-        // #endregion
-        
-        console.error('Error fetching obligations from backend:', error);
-        
-        // Fallback to mock data if API fails
-        const searchLower = query.toLowerCase();
-        const queryWords = searchLower.split(/\s+/).filter(w => w.length >= 2);
-        
-        const matches = SNIPPET_DATABASE.map(snippet => {
-          let matchScore = 0;
-          let maxScore = 0;
-          
-          if (snippet.title.toLowerCase().includes(searchLower)) {
-            matchScore += 3;
-          } else if (queryWords.some(word => snippet.title.toLowerCase().includes(word))) {
-            matchScore += 1.5;
-          }
-          maxScore += 3;
-          
-          if (snippet.pdfReference.fullText?.toLowerCase().includes(searchLower)) {
-            matchScore += 2;
-          } else if (snippet.pdfReference.fullText && queryWords.some(word => 
-            snippet.pdfReference.fullText!.toLowerCase().includes(word)
-          )) {
-            matchScore += 1;
-          }
-          maxScore += 2;
-          
-          const fieldMatches = Object.values(snippet.fieldMappings).filter(value => 
-            value.toLowerCase().includes(searchLower)
-          ).length;
-          if (fieldMatches > 0) {
-            matchScore += fieldMatches * 2;
-          }
-          maxScore += Object.keys(snippet.fieldMappings).length * 2;
-          
-          const confidenceScore = maxScore > 0 
-            ? Math.min(100, Math.round((matchScore / maxScore) * 100))
-            : 0;
-          
-          return {
-            ...snippet,
-            confidenceScore,
-            matchScore,
-          };
-        }).filter(snippet => snippet.matchScore > 0)
-          .sort((a, b) => b.confidenceScore - a.confidenceScore);
-        
-        // #region agent log
-        console.log('[DEBUG] Setting snippets with mock data', {mockMatchesCount: matches.length});
-        fetch('http://127.0.0.1:7242/ingest/c69e181c-4485-4aaa-8fb9-54a919c8d97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:1355',message:'Setting snippets with mock data',data:{mockMatchesCount:matches.length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1'})}).catch(()=>{});
-        // #endregion
-        
-        setSnippets(matches.length > 0 ? matches : SNIPPET_DATABASE.map(s => ({ ...s, confidenceScore: 30 })));
-        setIsAnalyzing(false);
+        return {
+          ...snippet,
+          confidenceScore,
+        };
+      });
+      
+      // #region agent log
+      console.log('[DEBUG] Setting snippets state with backend data', {snippetsCount: snippetsWithConfidence.length, firstSnippetId: snippetsWithConfidence[0]?.id});
+      fetch('http://127.0.0.1:7242/ingest/c69e181c-4485-4aaa-8fb9-54a919c8d97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:1304',message:'Setting snippets state with backend data',data:{snippetsCount:snippetsWithConfidence.length,firstSnippetId:snippetsWithConfidence[0]?.id},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H5'})}).catch(()=>{});
+      // #endregion
+      
+      // Update snippets state
+      setSnippets(snippetsWithConfidence.length > 0 ? snippetsWithConfidence : []);
+      setIsAnalyzing(false);
+      
+    } catch (error) {
+      // #region agent log
+      console.log('[DEBUG] API call failed, clearing snippets', {error: error instanceof Error ? error.message : String(error), errorType: error?.constructor?.name});
+      fetch('http://127.0.0.1:7242/ingest/c69e181c-4485-4aaa-8fb9-54a919c8d97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:1308',message:'API call failed, clearing snippets',data:{error:error instanceof Error?error.message:String(error),errorType:error?.constructor?.name},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1'})}).catch(()=>{});
+      // #endregion
+      
+      console.error('Error fetching obligations from backend:', error);
+      
+      // Check if it's a connection error
+      const isConnectionError = 
+        (error as any)?.isConnectionError ||
+        (error instanceof TypeError && error.message.includes('Failed to fetch')) ||
+        (error instanceof Error && (
+          error.message.includes('NetworkError') ||
+          error.message.includes('Failed to fetch') ||
+          error.message.includes('ERR_NETWORK') ||
+          error.message.includes('ERR_INTERNET_DISCONNECTED') ||
+          error.message.includes('ERR_CONNECTION_REFUSED')
+        ));
+      
+      // Show alert if connection error
+      if (isConnectionError) {
+        alert('Legal OCR Model is not running !');
       }
-    } else {
-      // #region agent log
-      console.log('[DEBUG] Query too short, clearing snippets', {queryLength: query.trim().length});
-      fetch('http://127.0.0.1:7242/ingest/c69e181c-4485-4aaa-8fb9-54a919c8d97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:1358',message:'Query too short, clearing snippets',data:{queryLength:query.trim().length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H4'})}).catch(()=>{});
-      // #endregion
       
+      // Clear snippets on error (no fallback to mock data)
       setSnippets([]);
       setIsAnalyzing(false);
     }
@@ -1767,6 +1609,8 @@ export default function App() {
             hasAIGeneratedFields={aiGeneratedFieldsMap}
             onDocumentCheckChange={handleDocumentCheckChange}
             reviewReason={reviewReason}
+            globalSearchQuery={globalSearchQuery}
+            onGlobalSearch={handleGlobalSearch}
           />
         </main>
       )}
