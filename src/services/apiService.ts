@@ -196,5 +196,6 @@ export function transformObligationToSnippet(obligation: BackendObligation, inde
     matchedFields: ['Responsible Party', 'Maintenance Owner Responsibility', 'Legal Notes'],
     status: 'normal',
     confidenceScore: 85, // Default confidence score, can be adjusted based on relevance
+    citations: obligation.Citation, // Preserve all Citation data for PDF navigation
   };
 }

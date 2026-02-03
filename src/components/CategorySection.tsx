@@ -4,6 +4,70 @@ import { FormField } from '../App';
 import { GhostFormField } from './GhostFormField';
 import { AIAnalyzingAnimation } from './AIAnalyzingAnimation';
 import { Input } from './ui/input';
+import { CitationItem } from '../services/apiService';
+import { PDFViewer } from './PDFViewer';
+
+// Expandable Card Component
+interface ExpandableCardProps {
+  title: string;
+  content: string;
+  maxLength?: number;
+  isBulletList?: boolean;
+  minHeight?: string;
+}
+
+function ExpandableCard({ title, content, maxLength = 150, isBulletList = false, minHeight }: ExpandableCardProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const shouldTruncate = content.length > maxLength;
+  const displayContent = shouldTruncate && !isExpanded 
+    ? content.substring(0, maxLength) + '...' 
+    : content;
+
+  const renderContent = () => {
+    if (isBulletList) {
+      const parts = displayContent.split('\n\n');
+      return (
+        <div 
+          className="text-sm text-gray-900 space-y-2" 
+          style={minHeight ? { minHeight } : {}}
+        >
+          {parts.map((part, idx) => (
+            <p key={idx} className="flex items-start gap-2 leading-relaxed">
+              <span className="text-gray-500 mt-0.5">•</span>
+              <span>{part}</span>
+            </p>
+          ))}
+        </div>
+      );
+    }
+    return (
+      <p 
+        className="text-sm text-gray-900 leading-relaxed" 
+        style={minHeight ? { minHeight } : {}}
+      >
+        {displayContent}
+      </p>
+    );
+  };
+
+  return (
+    <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+      <p className="text-xs font-bold text-gray-700 mb-1.5">{title}</p>
+      {renderContent()}
+      {shouldTruncate && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsExpanded(!isExpanded);
+          }}
+          className="mt-2 text-xs text-blue-600 hover:text-blue-800 font-medium"
+        >
+          {isExpanded ? 'View Less' : 'View More'}
+        </button>
+      )}
+    </div>
+  );
+}
 
 interface PDFReference {
   page: number;
@@ -21,6 +85,7 @@ interface Snippet {
   confidenceScore?: number;
   status?: 'normal' | 'updated' | 'deleted';
   documentId?: string;
+  citations?: CitationItem[]; // Citation data for PDF navigation
 }
 
 interface Document {
@@ -95,6 +160,7 @@ export function CategorySection({
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [selectedPreviewResponse] = useState<AIResponse | null>(null);
   const [currentSnippetIndex, setCurrentSnippetIndex] = useState(0);
+  const [flippedSnippetId, setFlippedSnippetId] = useState<string | null>(null);
 
   // Reset snippet index when snippets change
   useEffect(() => {
@@ -374,81 +440,199 @@ export function CategorySection({
               {/* Main Card Container */}
               <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
                 {/* Header Section */}
-                <div className="px-4 py-3 border-b border-gray-200 bg-gray-50">
+                <div className="px-4 py-3 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
                   <h3 className="text-sm font-bold text-gray-900">AI interpretations from agreement</h3>
+                  
+                  {/* Navigation Controls - Header Right */}
+                  {snippets.length > 1 && (
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setCurrentSnippetIndex((prev) => (prev - 1 + snippets.length) % snippets.length);
+                          setFlippedSnippetId(null); // Reset flip when changing snippets
+                        }}
+                        disabled={snippets.length <= 1}
+                        className="p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        title="Previous snippet"
+                      >
+                        <ChevronLeft className="w-5 h-5" />
+                      </button>
+                      <span className="text-sm text-gray-600 font-medium">
+                        {currentSnippetIndex + 1} of {snippets.length} rows
+                      </span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setCurrentSnippetIndex((prev) => (prev + 1) % snippets.length);
+                          setFlippedSnippetId(null); // Reset flip when changing snippets
+                        }}
+                        disabled={snippets.length <= 1}
+                        className="p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        title="Next snippet"
+                      >
+                        <ChevronRight className="w-5 h-5" />
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Content Section */}
                 {currentSnippet && (
                   <div className="p-4">
-                    <div className="space-y-2">
-                      {/* Responsible Party Card */}
-                      {currentSnippet.fieldMappings.responsibleParty && (
-                        <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-                          <p className="text-xs font-bold text-gray-700 mb-1.5">Responsible Party</p>
-                          <p className="text-sm text-gray-900 leading-relaxed">{currentSnippet.fieldMappings.responsibleParty}</p>
-                        </div>
-                      )}
-
-                      {/* Maintenance Owner Responsibility Card */}
-                      {currentSnippet.fieldMappings.maintenanceOwnerResponsibility && (
-                        <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-                          <p className="text-xs font-bold text-gray-700 mb-1.5">Maintenance Owner Responsibility</p>
-                          <p className="text-sm text-gray-900 leading-relaxed">{currentSnippet.fieldMappings.maintenanceOwnerResponsibility}</p>
-                        </div>
-                      )}
-
-                      {/* Maintenance Reasoning Card */}
-                      {(currentSnippet.fieldMappings.maintenanceReasoning || currentSnippet.pdfReference.segment || currentSnippet.pdfReference.context) && (
-                        <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-                          <p className="text-xs font-bold text-gray-700 mb-2">Maintenance Reasoning</p>
-                          <div className="text-sm text-gray-900 space-y-2">
-                            {currentSnippet.pdfReference.segment && (
-                              <p className="flex items-start gap-2 leading-relaxed">
-                                <span className="text-gray-500 mt-0.5">•</span>
-                                <span>Per Section {currentSnippet.pdfReference.page}, {currentSnippet.pdfReference.segment}</span>
-                              </p>
+                    {/* Flip Card Container */}
+                    <div
+                      className="relative w-full"
+                      style={{ perspective: '1000px' }}
+                    >
+                      <div
+                        className="relative w-full"
+                        style={{ 
+                          transformStyle: 'preserve-3d',
+                          transform: flippedSnippetId === currentSnippet.id ? 'rotateY(180deg)' : 'rotateY(0deg)'
+                        }}
+                      >
+                        {/* Front of Card - Snippet Content */}
+                        <div
+                          className="w-full"
+                          style={{ 
+                            backfaceVisibility: 'hidden',
+                            WebkitBackfaceVisibility: 'hidden',
+                            visibility: flippedSnippetId === currentSnippet.id ? 'hidden' : 'visible',
+                            position: flippedSnippetId === currentSnippet.id ? 'absolute' : 'relative',
+                            top: 0,
+                            left: 0,
+                            right: 0
+                          }}
+                        >
+                          <div className="space-y-2">
+                            {/* Responsible Party Card - No minimum height */}
+                            {currentSnippet.fieldMappings.responsibleParty && (
+                              <ExpandableCard
+                                title="Responsible Party"
+                                content={currentSnippet.fieldMappings.responsibleParty}
+                                maxLength={450}
+                              />
                             )}
-                            {currentSnippet.pdfReference.context && (
-                              <p className="flex items-start gap-2 leading-relaxed">
-                                <span className="text-gray-500 mt-0.5">•</span>
-                                <span>{currentSnippet.pdfReference.context}</span>
-                              </p>
+
+                            {/* Maintenance Owner Responsibility Card - Minimum height equivalent to ~200 chars */}
+                            {currentSnippet.fieldMappings.maintenanceOwnerResponsibility && (
+                              <ExpandableCard
+                                title="Maintenance Owner Responsibility"
+                                content={currentSnippet.fieldMappings.maintenanceOwnerResponsibility}
+                                maxLength={450}
+                                minHeight="80px"
+                              />
                             )}
-                            {currentSnippet.fieldMappings.maintenanceReasoning && (
-                              <p className="flex items-start gap-2 leading-relaxed">
-                                <span className="text-gray-500 mt-0.5">•</span>
-                                <span>{currentSnippet.fieldMappings.maintenanceReasoning}</span>
-                              </p>
+
+                            {/* Maintenance Reasoning Card - Minimum height equivalent to ~200 chars */}
+                            {(currentSnippet.fieldMappings.maintenanceReasoning || currentSnippet.pdfReference.segment || currentSnippet.pdfReference.context) && (
+                              <ExpandableCard
+                                title="Maintenance Reasoning"
+                                content={(() => {
+                                  const parts = [];
+                                  if (currentSnippet.pdfReference.segment) {
+                                    parts.push(`Per Section ${currentSnippet.pdfReference.page}, ${currentSnippet.pdfReference.segment}`);
+                                  }
+                                  if (currentSnippet.pdfReference.context) {
+                                    parts.push(currentSnippet.pdfReference.context);
+                                  }
+                                  if (currentSnippet.fieldMappings.maintenanceReasoning) {
+                                    parts.push(currentSnippet.fieldMappings.maintenanceReasoning);
+                                  }
+                                  return parts.join('\n\n');
+                                })()}
+                                maxLength={450}
+                                isBulletList={true}
+                                minHeight="80px"
+                              />
+                            )}
+
+                          </div>
+                        </div>
+
+                        {/* Back of Card - PDF Viewer */}
+                        <div
+                          className="w-full"
+                          style={{ 
+                            backfaceVisibility: 'hidden',
+                            WebkitBackfaceVisibility: 'hidden',
+                            transform: 'rotateY(180deg)',
+                            visibility: flippedSnippetId === currentSnippet.id ? 'visible' : 'hidden',
+                            position: flippedSnippetId === currentSnippet.id ? 'relative' : 'absolute',
+                            top: 0,
+                            left: 0,
+                            right: 0
+                          }}
+                        >
+                          <div className="relative h-full">
+                            {currentSnippet.citations && currentSnippet.citations.length > 0 ? (
+                              <div>
+                                {/* Get all page numbers from all citations */}
+                                {(() => {
+                                  const allPageNumbers = currentSnippet.citations!.flatMap(cit => cit.pageNumbers);
+                                  const uniquePageNumbers = Array.from(new Set(allPageNumbers)).sort((a, b) => a - b);
+                                  const firstCitation = currentSnippet.citations![0];
+                                  
+                                  return (
+                                    <div>
+                                      <div className="mb-3 flex items-center justify-end">
+                                        <span className="text-xs text-gray-500">
+                                          {firstCitation.docId}
+                                        </span>
+                                      </div>
+                                      <PDFViewer
+                                        documentName={firstCitation.docId}
+                                        pageNumbers={uniquePageNumbers}
+                                      />
+                                    </div>
+                                  );
+                                })()}
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-center h-full bg-gray-50 rounded-lg border border-gray-200">
+                                <p className="text-sm text-gray-500">No PDF reference available</p>
+                              </div>
                             )}
                           </div>
                         </div>
-                      )}
+                      </div>
                     </div>
 
-                    {/* Footer with Pagination and Accept Button */}
-                    <div className="mt-4 pt-4 border-gray-200 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
+                    {/* Footer with View Reference/Snippet and Accept Button */}
+                    <div className="mt-4 pt-4 border-t border-gray-200 flex items-center justify-between">
+                      {/* View Reference/Snippet Button - Bottom Left */}
+                      {currentSnippet.citations && currentSnippet.citations.length > 0 ? (
                         <button
-                          onClick={() => setCurrentSnippetIndex((prev) => (prev - 1 + snippets.length) % snippets.length)}
-                          disabled={snippets.length <= 1}
-                          className="p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            // Toggle between snippet and PDF view
+                            setFlippedSnippetId(flippedSnippetId === currentSnippet.id ? null : currentSnippet.id);
+                          }}
+                          className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors text-sm font-medium border border-gray-300 flex items-center gap-2"
                         >
-                          <ChevronLeft className="w-5 h-5" />
+                          {flippedSnippetId === currentSnippet.id ? (
+                            <>
+                              <ChevronLeft className="w-4 h-4" />
+                              View Snippet
+                            </>
+                          ) : (
+                            <>
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                              View Reference
+                            </>
+                          )}
                         </button>
-                        <span className="text-sm text-gray-600 font-medium">
-                          {currentSnippetIndex + 1} of {snippets.length} rows
-                        </span>
-                        <button
-                          onClick={() => setCurrentSnippetIndex((prev) => (prev + 1) % snippets.length)}
-                          disabled={snippets.length <= 1}
-                          className="p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        >
-                          <ChevronRight className="w-5 h-5" />
-                        </button>
-                      </div>
+                      ) : (
+                        <div></div>
+                      )}
+                      
+                      {/* Accept Button - Bottom Right */}
                       <button
-                        onClick={() => {
+                        onClick={(e) => {
+                          e.stopPropagation();
                           if (onApplySnippet && currentSnippet) {
                             // Apply snippet, hide carousel, and turn off AI mode
                             // Passing false will clear snippets and turn off AI mode in handleApplySnippet
@@ -749,6 +933,7 @@ export function CategorySection({
           position: relative;
           z-index: 10;
         }
+
       `}</style>
     </div>
   );

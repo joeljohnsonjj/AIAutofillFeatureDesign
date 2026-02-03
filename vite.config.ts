@@ -5,6 +5,13 @@
 
   export default defineConfig({
     plugins: [react()],
+    optimizeDeps: {
+      exclude: ['pdfjs-dist'],
+      include: ['react-router-dom'],
+    },
+    worker: {
+      format: 'es',
+    },
     resolve: {
       extensions: ['.js', '.jsx', '.ts', '.tsx', '.json'],
       alias: {
