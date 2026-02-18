@@ -100,7 +100,7 @@ export function AgreementForm({
       </div>
 
       <div className="p-6">
-        {/* Identification Section */}
+        {/* Identification Section - Agreement name, date, notes only */}
         <CategorySection
           category="identification"
           title="Identification"
@@ -113,16 +113,16 @@ export function AgreementForm({
           onFieldChange={onFieldChange}
           isAIApproved={isAIApproved}
           hasAIGeneratedFields={hasAIGeneratedFields}
-          documents={documents}
-          checkedDocuments={checkedDocuments}
-          onDocumentCheckChange={onDocumentCheckChange}
           aiMode={aiMode}
         />
 
-        {/* Maintenance Section */}
+        {/* Maintenance Section - Document selection, search, AI snippets, maintenance fields */}
         <CategorySection
           category="maintenance"
           title="Maintenance"
+          documents={documents}
+          checkedDocuments={checkedDocuments}
+          onDocumentCheckChange={onDocumentCheckChange}
           fields={[
             { id: 'responsibleParty', label: 'Maintenance Party', value: formData.responsibleParty, category: 'maintenance' },
             { id: 'maintenanceOwnerResponsibility', label: 'Maintenance Owner Responsibility', value: formData.maintenanceOwnerResponsibility, category: 'maintenance' },
@@ -143,7 +143,6 @@ export function AgreementForm({
           hasAIGeneratedFields={hasAIGeneratedFields}
           globalSearchQuery={globalSearchQuery}
           onGlobalSearch={onGlobalSearch}
-          checkedDocuments={checkedDocuments}
         />
       </div>
 
@@ -152,6 +151,7 @@ export function AgreementForm({
         <button 
           onClick={onCancel}
           className="px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-md"
+          style={{position:'relative', borderRadius:'60px', top:'-5px'}}
         >
           Cancel
         </button>
@@ -160,6 +160,7 @@ export function AgreementForm({
             <button 
               onClick={onSaveDraft}
               className="px-4 py-2 text-gray-600 hover:bg-gray-50 rounded-md border border-gray-300"
+              style={{position:'relative', borderRadius:'60px', top:'-5px'}}
             >
               Save as Draft
             </button>
@@ -173,6 +174,7 @@ export function AgreementForm({
                 : 'bg-gray-300 text-gray-500 cursor-not-allowed'
             }`}
             title={!isFinishEnabled ? 'Please accept the AI suggestion before finishing' : ''}
+            style={{position:'relative', borderRadius:'60px', top:'-5px'}}
           >
             Finish
           </button>

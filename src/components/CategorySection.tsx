@@ -14,14 +14,19 @@ interface ExpandableCardProps {
   maxLength?: number;
   isBulletList?: boolean;
   minHeight?: string;
+  maxHeight?: string;
 }
 
-function ExpandableCard({ title, content, maxLength = 150, isBulletList = false, minHeight }: ExpandableCardProps) {
+function ExpandableCard({ title, content, maxLength = 150, isBulletList = false, minHeight, maxHeight }: ExpandableCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const shouldTruncate = content.length > maxLength;
   const displayContent = shouldTruncate && !isExpanded 
     ? content.substring(0, maxLength) + '...' 
     : content;
+
+  const contentStyle: React.CSSProperties = {};
+  if (minHeight) contentStyle.minHeight = minHeight;
+  if (maxHeight) contentStyle.maxHeight = maxHeight;
 
   const renderContent = () => {
     if (isBulletList) {
@@ -29,7 +34,7 @@ function ExpandableCard({ title, content, maxLength = 150, isBulletList = false,
       return (
         <div 
           className="text-sm text-gray-900 space-y-2" 
-          style={minHeight ? { minHeight } : {}}
+          style={contentStyle}
         >
           {parts.map((part, idx) => (
             <p key={idx} className="flex items-start gap-2 leading-relaxed">
@@ -43,7 +48,7 @@ function ExpandableCard({ title, content, maxLength = 150, isBulletList = false,
     return (
       <p 
         className="text-sm text-gray-900 leading-relaxed" 
-        style={minHeight ? { minHeight } : {}}
+        style={contentStyle}
       >
         {displayContent}
       </p>
@@ -145,7 +150,7 @@ export function CategorySection({
   onFieldSearch,
   onToggleAiMode,
   isAnalyzing = false,
-  snippetsCount = 0,
+  snippetsCount: _snippetsCount = 0,
   snippets = [],
   onApplySnippet,
   isAIApproved = false,
@@ -157,17 +162,33 @@ export function CategorySection({
   onDocumentCheckChange,
 }: CategorySectionProps) {
   const [localSearchQuery, setLocalSearchQuery] = useState('');
+  const [showSearchRequiredWarning, setShowSearchRequiredWarning] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [selectedPreviewResponse] = useState<AIResponse | null>(null);
   const [currentSnippetIndex, setCurrentSnippetIndex] = useState(0);
   const [flippedSnippetId, setFlippedSnippetId] = useState<string | null>(null);
+  const [pdfPageIndex, setPdfPageIndex] = useState(0);
 
-  // Reset snippet index when snippets change
+  // Reset snippet index when snippets change - clamp to valid bounds
   useEffect(() => {
     if (snippets.length > 0) {
+      // If current index is out of bounds, reset to last valid index
+      setCurrentSnippetIndex((prevIndex) => {
+        if (prevIndex >= snippets.length) {
+          return snippets.length - 1;
+        }
+        return prevIndex;
+      });
+    } else {
+      // No snippets - reset to 0
       setCurrentSnippetIndex(0);
     }
-  }, [snippets]);
+  }, [snippets.length]);
+
+  // Reset PDF page index when switching snippets or flipping view
+  useEffect(() => {
+    setPdfPageIndex(0);
+  }, [currentSnippetIndex, flippedSnippetId]);
   
   // Field-level autocomplete
   const [activeField, setActiveField] = useState<string | null>(null);
@@ -200,6 +221,15 @@ export function CategorySection({
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault();
+      if (checkedDocuments.length === 0) {
+        alert('Please select at least one document before searching');
+        return;
+      }
+      if (!localSearchQuery.trim()) {
+        setShowSearchRequiredWarning(true);
+        return;
+      }
+      setShowSearchRequiredWarning(false);
       handleSearch();
     }
   };
@@ -371,41 +401,6 @@ export function CategorySection({
             formData.notes,
             true
           )}
-          
-          {/* Documents List with Checkboxes - At bottom of Identification section */}
-          {documents.length > 0 && (
-            <div className="mt-6 pt-6 border-gray-200" data-tutorial="documents" style={{paddingTop: '15px'}}>
-              <h3 className="text-sm font-semibold text-gray-700 mb-3">
-                Uploaded Documents {aiMode && <span className="text-xs text-gray-500 font-normal">(Select documents to filter AI snippets)</span>}
-              </h3>
-              <div className="flex flex-wrap gap-3">
-                {documents.map((doc) => (
-                  <label
-                    key={doc.id}
-                    className={`flex items-center gap-2 px-3 py-2 border rounded-lg cursor-pointer transition-colors ${
-                      checkedDocuments.includes(doc.id)
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-gray-300 hover:bg-gray-50'
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={checkedDocuments.includes(doc.id)}
-                      onChange={(e) => {
-                        if (onDocumentCheckChange) {
-                          onDocumentCheckChange(doc.id, e.target.checked);
-                        }
-                      }}
-                      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                    />
-                    <span className="text-sm text-gray-700 truncate max-w-[200px]" title={doc.name}>
-                      {doc.name}
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
         </>
       );
     }
@@ -415,10 +410,153 @@ export function CategorySection({
       const maintenanceFields = ['responsibleParty', 'maintenanceOwnerResponsibility', 'maintenanceReasoning'];
       const hasAIFilledValues = maintenanceFields.some(fieldId => hasAIGeneratedFields[fieldId]);
       
-      const currentSnippet = snippets.length > 0 ? snippets[currentSnippetIndex] : null;
+      const currentSnippet = snippets.length > 0 && currentSnippetIndex < snippets.length 
+        ? snippets[currentSnippetIndex] 
+        : null;
       
       return (
         <div className="space-y-4">
+          {/* 1. Document Selection Table - Maintenance section starts here */}
+          {documents.length > 0 && (
+            <div className="mb-6" data-tutorial="documents">
+              <p className="text-sm text-gray-500 mb-3">
+                The documents below are available in the Documents tab on the Land details page
+              </p>
+              
+              <div className="border border-gray-200 rounded-lg overflow-hidden">
+                <table className="w-full">
+                  <thead className="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                      <th className="px-4 py-2 text-left">
+                        <input
+                          type="checkbox"
+                          checked={checkedDocuments.length === documents.length}
+                          onChange={(e) => {
+                            if (onDocumentCheckChange) {
+                              documents.forEach(doc => {
+                                onDocumentCheckChange(doc.id, e.target.checked);
+                              });
+                            }
+                          }}
+                          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                        />
+                      </th>
+                      <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700">File name</th>
+                      <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700">Uploaded by</th>
+                      <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700">Uploaded date</th>
+                      <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {documents.map((doc) => (
+                      <tr key={doc.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3">
+                          <input
+                            type="checkbox"
+                            checked={checkedDocuments.includes(doc.id)}
+                            onChange={(e) => {
+                              if (onDocumentCheckChange) {
+                                onDocumentCheckChange(doc.id, e.target.checked);
+                              }
+                            }}
+                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                          />
+                        </td>
+                        <td className="px-4 py-3">
+                          <button className="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                            {doc.name}
+                          </button>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-900">svc_team_24247137</td>
+                        <td className="px-4 py-3 text-sm text-gray-900">1/7/2026 2:08PM</td>
+                        <td className="px-4 py-3">
+                          <span className="inline-flex px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            New
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                
+                <div className="bg-white border-t border-gray-200 px-4 py-2 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <select className="border border-gray-300 rounded px-2 py-1 text-sm">
+                      <option>10</option>
+                      <option>25</option>
+                      <option>50</option>
+                    </select>
+                    <span className="text-sm text-gray-600">1 - 1 of 1 rows</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button className="p-1 text-gray-400 hover:text-gray-600">
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    <button className="p-1 text-gray-400 hover:text-gray-600">
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 2. Search bar + AI Search button - Full width row, no heading */}
+          <div className="flex items-center gap-2 w-full mb-1" style={{marginTop:'20px',marginBottom:'20px'}}>
+            <div className="relative flex-1 min-w-0">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Input
+                type="text"
+                placeholder="Search"
+                className="pl-9 w-full"
+                value={localSearchQuery}
+                onChange={(e) => {
+                  setLocalSearchQuery(e.target.value);
+                  setShowSearchRequiredWarning(false);
+                }}
+                onKeyDown={handleSearchKeyDown}
+                style={{paddingLeft:'33px'}}
+              />
+            </div>
+            {onToggleAiMode && (
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (checkedDocuments.length === 0) {
+                    alert('Please select at least one document before searching');
+                    return;
+                  }
+                  if (!localSearchQuery.trim()) {
+                    setShowSearchRequiredWarning(true);
+                    return;
+                  }
+                  setShowSearchRequiredWarning(false);
+                  if (!aiMode) onToggleAiMode(true);
+                  handleSearch();
+                }}
+                disabled={checkedDocuments.length === 0}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 flex-shrink-0 ${
+                  checkedDocuments.length === 0
+                    ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                    : aiMode
+                    ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
+                    : 'bg-gray-300 text-gray-700 hover:bg-gray-400'
+                }`}
+                title={checkedDocuments.length === 0 ? 'Please select at least one document' : 'Enter search text and click to search'}
+                style={{position:'relative', borderRadius:'60px'}}
+              >
+                <Search className="w-4 h-4" />
+                AI Search
+              </button>
+            )}
+          </div>
+
+          {/* Required field warning - show when AI Search clicked with empty search */}
+          {showSearchRequiredWarning && (
+            <p className="text-sm text-red-600 mb-4">Please enter a search term in the search bar to use AI Search.</p>
+          )}
+
           {/* AI Filled Status Message - Show when fields have AI-generated values (after Accept) */}
           {hasAIFilledValues && (
             <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-start gap-3">
@@ -440,41 +578,59 @@ export function CategorySection({
               {/* Main Card Container */}
               <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
                 {/* Header Section */}
-                <div className="px-4 py-3 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
-                  <h3 className="text-sm font-bold text-gray-900">AI interpretations from agreement</h3>
+                <div className="px-4 py-3 border-b border-gray-200 bg-white flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-semibold text-gray-900">AI interpretations from agreement</h3>
+                  </div>
                   
-                  {/* Navigation Controls - Header Right */}
-                  {snippets.length > 1 && (
-                    <div className="flex items-center gap-2">
+                  {/* Navigation Controls and View Legal Evidence - Header Right */}
+                  <div className="flex items-center gap-3">
+                    {/* View Legal Evidence Button */}
+                    {currentSnippet && currentSnippet.citations && currentSnippet.citations.length > 0 && (
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          setCurrentSnippetIndex((prev) => (prev - 1 + snippets.length) % snippets.length);
-                          setFlippedSnippetId(null); // Reset flip when changing snippets
+                          setFlippedSnippetId(flippedSnippetId === currentSnippet.id ? null : currentSnippet.id);
                         }}
-                        disabled={snippets.length <= 1}
-                        className="p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        title="Previous snippet"
+                        className="text-sm text-red-600 hover:text-red-700 font-medium flex items-center gap-1"
                       >
-                        <ChevronLeft className="w-5 h-5" />
+                        {flippedSnippetId === currentSnippet.id ? 'View Snippets' : 'View Legal Evidence'}
+                        {flippedSnippetId !== currentSnippet.id && <span className="text-lg"></span>}
                       </button>
-                      <span className="text-sm text-gray-600 font-medium">
-                        {currentSnippetIndex + 1} of {snippets.length} rows
-                      </span>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setCurrentSnippetIndex((prev) => (prev + 1) % snippets.length);
-                          setFlippedSnippetId(null); // Reset flip when changing snippets
-                        }}
-                        disabled={snippets.length <= 1}
-                        className="p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        title="Next snippet"
-                      >
-                        <ChevronRight className="w-5 h-5" />
-                      </button>
-                    </div>
-                  )}
+                    )}
+                    
+                    {snippets.length > 1 && (
+                      <div className="flex items-center gap-2 border-l border-gray-300 pl-3">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setCurrentSnippetIndex((prev) => (prev - 1 + snippets.length) % snippets.length);
+                            setFlippedSnippetId(null);
+                          }}
+                          disabled={snippets.length <= 1}
+                          className="p-1 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          title="Previous snippet"
+                        >
+                          <ChevronLeft className="w-4 h-4" />
+                        </button>
+                        <span className="text-sm text-gray-600">
+                          {currentSnippetIndex + 1} of {snippets.length} rows
+                        </span>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setCurrentSnippetIndex((prev) => (prev + 1) % snippets.length);
+                            setFlippedSnippetId(null);
+                          }}
+                          disabled={snippets.length <= 1}
+                          className="p-1 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          title="Next snippet"
+                        >
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Content Section */}
@@ -492,7 +648,7 @@ export function CategorySection({
                           transform: flippedSnippetId === currentSnippet.id ? 'rotateY(180deg)' : 'rotateY(0deg)'
                         }}
                       >
-                        {/* Front of Card - Snippet Content */}
+                        {/* Front of Card - Snippet Content (fixed height to match PDF back) */}
                         <div
                           className="w-full"
                           style={{ 
@@ -502,7 +658,8 @@ export function CategorySection({
                             position: flippedSnippetId === currentSnippet.id ? 'absolute' : 'relative',
                             top: 0,
                             left: 0,
-                            right: 0
+                            right: 0,
+                            minHeight: '300px'
                           }}
                         >
                           <div className="space-y-2">
@@ -512,6 +669,8 @@ export function CategorySection({
                                 title="Responsible Party"
                                 content={currentSnippet.fieldMappings.responsibleParty}
                                 maxLength={450}
+                                minHeight='30px'
+                                maxHeight="80px"
                               />
                             )}
 
@@ -521,7 +680,8 @@ export function CategorySection({
                                 title="Maintenance Owner Responsibility"
                                 content={currentSnippet.fieldMappings.maintenanceOwnerResponsibility}
                                 maxLength={450}
-                                minHeight="80px"
+                                minHeight="45px"
+                                maxHeight="100px"
                               />
                             )}
 
@@ -544,14 +704,15 @@ export function CategorySection({
                                 })()}
                                 maxLength={450}
                                 isBulletList={true}
-                                minHeight="80px"
+                                minHeight="45px"
+                                maxHeight="100px"
                               />
                             )}
 
                           </div>
                         </div>
 
-                        {/* Back of Card - PDF Viewer */}
+                        {/* Back of Card - PDF Viewer (same height as snippet front) */}
                         <div
                           className="w-full"
                           style={{ 
@@ -562,33 +723,79 @@ export function CategorySection({
                             position: flippedSnippetId === currentSnippet.id ? 'relative' : 'absolute',
                             top: 0,
                             left: 0,
-                            right: 0
+                            right: 0,
+                            minHeight: '300px'
                           }}
                         >
                           <div className="relative h-full">
                             {currentSnippet.citations && currentSnippet.citations.length > 0 ? (
-                              <div>
-                                {/* Get all page numbers from all citations */}
-                                {(() => {
-                                  const allPageNumbers = currentSnippet.citations!.flatMap(cit => cit.pageNumbers);
-                                  const uniquePageNumbers = Array.from(new Set(allPageNumbers)).sort((a, b) => a - b);
-                                  const firstCitation = currentSnippet.citations![0];
-                                  
-                                  return (
-                                    <div>
-                                      <div className="mb-3 flex items-center justify-end">
-                                        <span className="text-xs text-gray-500">
+                              (() => {
+                                const allPageNumbers = currentSnippet.citations!.flatMap(cit => cit.pageNumbers);
+                                const uniquePageNumbers = Array.from(new Set(allPageNumbers)).sort((a, b) => a - b);
+                                const firstCitation = currentSnippet.citations![0];
+                                const currentPage = uniquePageNumbers[pdfPageIndex] ?? uniquePageNumbers[0];
+                                
+                                return (
+                                  <div>
+                                    {/* Legal Evidence Header - contains title, doc link, View Snippets, AND page numbers */}
+                                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                                      <div className="flex items-center gap-2">
+                                        <h4 className="text-sm font-semibold text-gray-900">Legal Evidence</h4>
+                                        <button className="text-blue-600 hover:text-blue-800 text-sm">
                                           {firstCitation.docId}
-                                        </span>
+                                        </button>
                                       </div>
-                                      <PDFViewer
-                                        documentName={firstCitation.docId}
-                                        pageNumbers={uniquePageNumbers}
-                                      />
+                                      <div className="flex items-center gap-2">
+                                        {/* Page numbers - inside Legal Evidence div */}
+                                        {uniquePageNumbers.length > 1 && (
+                                          <div className="flex items-center gap-1">
+                                            <button
+                                              onClick={() => setPdfPageIndex(Math.max(0, pdfPageIndex - 1))}
+                                              disabled={pdfPageIndex === 0}
+                                              className="p-1 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                              title="Previous page"
+                                            >
+                                              <ChevronLeft className="w-4 h-4" />
+                                            </button>
+                                            <div className="flex items-center gap-1 flex-wrap">
+                                              {uniquePageNumbers.map((pageNum, idx) => (
+                                                <button
+                                                  key={pageNum}
+                                                  onClick={() => setPdfPageIndex(idx)}
+                                                  className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
+                                                    pageNum === currentPage
+                                                      ? 'bg-blue-600 text-white'
+                                                      : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
+                                                  }`}
+                                                  title={`Go to page ${pageNum}`}
+                                                >
+                                                  Page {pageNum}
+                                                </button>
+                                              ))}
+                                            </div>
+                                            <button
+                                              onClick={() => setPdfPageIndex(Math.min(uniquePageNumbers.length - 1, pdfPageIndex + 1))}
+                                              disabled={pdfPageIndex >= uniquePageNumbers.length - 1}
+                                              className="p-1 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                              title="Next page"
+                                            >
+                                              <ChevronRight className="w-4 h-4" />
+                                            </button>
+                                          </div>
+                                        )}
+                                      </div>
                                     </div>
-                                  );
-                                })()}
-                              </div>
+                                    
+                                    <PDFViewer
+                                      documentName={firstCitation.docId}
+                                      pageNumbers={uniquePageNumbers}
+                                      hidePageNavigation
+                                      controlledPageIndex={pdfPageIndex}
+                                      containerHeight="260px"
+                                    />
+                                  </div>
+                                );
+                              })()
                             ) : (
                               <div className="flex items-center justify-center h-full bg-gray-50 rounded-lg border border-gray-200">
                                 <p className="text-sm text-gray-500">No PDF reference available</p>
@@ -599,47 +806,17 @@ export function CategorySection({
                       </div>
                     </div>
 
-                    {/* Footer with View Reference/Snippet and Accept Button */}
-                    <div className="mt-4 pt-4 border-t border-gray-200 flex items-center justify-between">
-                      {/* View Reference/Snippet Button - Bottom Left */}
-                      {currentSnippet.citations && currentSnippet.citations.length > 0 ? (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            // Toggle between snippet and PDF view
-                            setFlippedSnippetId(flippedSnippetId === currentSnippet.id ? null : currentSnippet.id);
-                          }}
-                          className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors text-sm font-medium border border-gray-300 flex items-center gap-2"
-                        >
-                          {flippedSnippetId === currentSnippet.id ? (
-                            <>
-                              <ChevronLeft className="w-4 h-4" />
-                              View Snippet
-                            </>
-                          ) : (
-                            <>
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                              </svg>
-                              View Reference
-                            </>
-                          )}
-                        </button>
-                      ) : (
-                        <div></div>
-                      )}
-                      
-                      {/* Accept Button - Bottom Right */}
+                    {/* Footer with Accept Button only */}
+                    <div className="mt-4 pt-4  border-gray-200 flex justify-end">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           if (onApplySnippet && currentSnippet) {
-                            // Apply snippet, hide carousel, and turn off AI mode
-                            // Passing false will clear snippets and turn off AI mode in handleApplySnippet
                             onApplySnippet(currentSnippet, false);
                           }
                         }}
-                        className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm font-medium shadow-sm"
+                        className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium shadow-sm"
+                        style={{ position:'relative', borderRadius:'60px', top:'-15px'}}
                       >
                         Accept
                       </button>
@@ -699,78 +876,10 @@ export function CategorySection({
   return (
     <div className="border-b border-gray-200" data-section={category}>
       <div className="px-6 py-6">
-        {/* Category Header */}
+        {/* Category Header - For maintenance, only show heading (document table, search bar are in form fields below) */}
         <div className="mb-4">
-            <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-4 flex-1 min-w-0">
-              <h2 className="text-gray-900 font-bold text-xl flex-shrink-0">{title}</h2>
-              {category === 'maintenance' && (
-                <div className="relative flex-1 min-w-0 flex items-center gap-2">
-                  <div className="relative flex-1 min-w-0">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <Input
-                      type="text"
-                      placeholder="     Search"
-                      className="pl-9 w-full"
-                      value={localSearchQuery}
-                      onChange={(e) => setLocalSearchQuery(e.target.value)}
-                      onKeyDown={handleSearchKeyDown}
-                    />
-                  </div>
-                  {/* AI Search Button */}
-                  {onToggleAiMode && (
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        console.log('[DEBUG CategorySection] AI Search button clicked', { 
-                          checkedDocuments: checkedDocuments.length,
-                          aiMode,
-                          onGlobalSearch: !!onGlobalSearch,
-                          localSearchQuery,
-                          onToggleAiMode: !!onToggleAiMode
-                        });
-                        
-                        // Always trigger search when AI Search button is clicked (even if query is empty)
-                        // But only if documents are selected
-                        if (checkedDocuments.length > 0) {
-                          // Trigger search immediately - onGlobalSearch is now always available
-                          console.log('[DEBUG CategorySection] Triggering search', {
-                            aiMode,
-                            hasOnGlobalSearch: !!onGlobalSearch,
-                            localSearchQuery
-                          });
-                          
-                          if (!aiMode) {
-                            // If AI mode is off, turn it on first
-                            console.log('[DEBUG CategorySection] Turning on AI mode');
-                            onToggleAiMode(true);
-                          }
-                          
-                          // Always trigger search (onGlobalSearch is now always available)
-                          handleSearch();
-                        } else {
-                          console.warn('[DEBUG CategorySection] Cannot search - no documents selected');
-                          alert('Please select at least one document before searching');
-                        }
-                      }}
-                      disabled={checkedDocuments.length === 0}
-                      className={`px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2 flex-shrink-0 ${
-                        checkedDocuments.length === 0
-                          ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                          : aiMode
-                          ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
-                          : 'bg-gray-300 text-gray-700 hover:bg-gray-400'
-                      }`}
-                      title={checkedDocuments.length === 0 ? 'Please select at least one document' : 'Click to search'}
-                    >
-                      <Search className="w-4 h-4" />
-                      AI Search
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-gray-900 font-bold text-xl">{title}</h2>
             <div className="flex items-center gap-3">
               {/* AI Analyzing Animation - Show in maintenance section when analyzing */}
               {category === 'maintenance' && aiMode && isAnalyzing && (
@@ -778,11 +887,8 @@ export function CategorySection({
                   <AIAnalyzingAnimation size="sm" message="" />
                 </div>
               )}
-              {/* Snippet Count - Show when not analyzing and snippets are available */}
-              {category === 'maintenance' && aiMode && !isAnalyzing && snippetsCount > 0 }
             </div>
           </div>
-          
         </div>
 
         {/* Form Fields */}

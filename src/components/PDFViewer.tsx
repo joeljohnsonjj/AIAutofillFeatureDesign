@@ -20,9 +20,15 @@ interface PDFViewerProps {
   pageNumbers: number[];
   onPageChange?: (page: number) => void;
   className?: string;
+  /** When true, hides the internal page navigation (for use when parent renders nav elsewhere) */
+  hidePageNavigation?: boolean;
+  /** Controlled page index - when provided, viewer uses this instead of internal state */
+  controlledPageIndex?: number;
+  /** Optional fixed height for the PDF container (e.g. to match snippet size) */
+  containerHeight?: string;
 }
 
-export function PDFViewer({ documentName, pageNumbers, onPageChange, className = '' }: PDFViewerProps) {
+export function PDFViewer({ documentName, pageNumbers, onPageChange, className = '', hidePageNavigation = false, controlledPageIndex, containerHeight }: PDFViewerProps) {
   const [numPages, setNumPages] = useState<number | null>(null);
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -83,11 +89,35 @@ export function PDFViewer({ documentName, pageNumbers, onPageChange, className =
 
   // Sort page numbers
   const sortedPages = [...pageNumbers].sort((a, b) => a - b);
-  const currentPage = sortedPages[currentPageIndex] || sortedPages[0] || 1;
+  const isControlled = controlledPageIndex !== undefined;
+  const effectivePageIndex = isControlled ? controlledPageIndex : currentPageIndex;
+  const currentPage = sortedPages[effectivePageIndex] ?? sortedPages[0] ?? 1;
 
   useEffect(() => {
-    setCurrentPageIndex(0);
-  }, [pageNumbers]);
+    if (!isControlled) {
+      setCurrentPageIndex(0);
+    }
+  }, [pageNumbers, isControlled]);
+
+  const scrollToPage = (pageNum: number) => {
+    const pageElement = pageRefs.current[pageNum];
+    const container = containerRef.current;
+    if (pageElement && container) {
+      const containerRect = container.getBoundingClientRect();
+      const pageRect = pageElement.getBoundingClientRect();
+      const scrollTop = container.scrollTop;
+      const relativeTop = pageRect.top - containerRect.top + scrollTop;
+      container.scrollTo({ top: relativeTop - 20, behavior: 'smooth' });
+      onPageChange?.(pageNum);
+    }
+  };
+
+  // When controlled, scroll to the selected page when it changes
+  useEffect(() => {
+    if (isControlled && sortedPages[effectivePageIndex]) {
+      scrollToPage(sortedPages[effectivePageIndex]);
+    }
+  }, [effectivePageIndex, isControlled]);
 
   const handleDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
     setNumPages(numPages);
@@ -118,49 +148,33 @@ export function PDFViewer({ documentName, pageNumbers, onPageChange, className =
     setLoading(false);
   };
 
-  const scrollToPage = (pageNum: number) => {
-    const pageElement = pageRefs.current[pageNum];
-    const container = containerRef.current;
-    
-    if (pageElement && container) {
-      const containerRect = container.getBoundingClientRect();
-      const pageRect = pageElement.getBoundingClientRect();
-      const scrollTop = container.scrollTop;
-      const relativeTop = pageRect.top - containerRect.top + scrollTop;
-      
-      container.scrollTo({
-        top: relativeTop - 20, // 20px offset from top
-        behavior: 'smooth',
-      });
-      
-      if (onPageChange) {
-        onPageChange(pageNum);
+  const handlePageClick = (pageNum: number) => {
+    scrollToPage(pageNum);
+    if (!isControlled) {
+      const index = sortedPages.indexOf(pageNum);
+      if (index !== -1) {
+        setCurrentPageIndex(index);
       }
     }
   };
 
-  const handlePageClick = (pageNum: number) => {
-    scrollToPage(pageNum);
-    // Update current page index
-    const index = sortedPages.indexOf(pageNum);
-    if (index !== -1) {
-      setCurrentPageIndex(index);
-    }
-  };
-
   const handlePreviousPage = () => {
-    if (currentPageIndex > 0) {
-      const newIndex = currentPageIndex - 1;
-      setCurrentPageIndex(newIndex);
+    const idx = effectivePageIndex;
+    if (idx > 0) {
+      const newIndex = idx - 1;
+      if (!isControlled) setCurrentPageIndex(newIndex);
       scrollToPage(sortedPages[newIndex]);
+      onPageChange?.(sortedPages[newIndex]);
     }
   };
 
   const handleNextPage = () => {
-    if (currentPageIndex < sortedPages.length - 1) {
-      const newIndex = currentPageIndex + 1;
-      setCurrentPageIndex(newIndex);
+    const idx = effectivePageIndex;
+    if (idx < sortedPages.length - 1) {
+      const newIndex = idx + 1;
+      if (!isControlled) setCurrentPageIndex(newIndex);
       scrollToPage(sortedPages[newIndex]);
+      onPageChange?.(sortedPages[newIndex]);
     }
   };
 
@@ -178,8 +192,8 @@ export function PDFViewer({ documentName, pageNumbers, onPageChange, className =
 
   return (
     <div className={`relative ${className}`}>
-      {/* Page Navigation - Show if multiple pages */}
-      {sortedPages.length > 1 && (
+      {/* Page Navigation - Show if multiple pages and not hidden (e.g. when parent renders it) */}
+      {!hidePageNavigation && sortedPages.length > 1 && (
         <div className="mb-3 flex items-center justify-between bg-gray-50 px-3 py-2 rounded-lg border border-gray-200">
           <button
             onClick={handlePreviousPage}
@@ -223,8 +237,9 @@ export function PDFViewer({ documentName, pageNumbers, onPageChange, className =
         ref={containerRef}
         className="bg-gray-100 rounded-lg border border-gray-300 overflow-y-auto"
         style={{ 
-          maxHeight: '400px', 
-          minHeight: '300px',
+          maxHeight: containerHeight ?? '400px', 
+          minHeight: containerHeight ?? '300px',
+          height: containerHeight,
           width: '100%',
           padding: '10px'
         }}

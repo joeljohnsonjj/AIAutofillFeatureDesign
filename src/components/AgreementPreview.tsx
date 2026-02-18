@@ -1,17 +1,18 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { ArrowLeft, FileText, Building2, FileCheck, File, Trash2 } from 'lucide-react';
+import { ArrowLeft, FileText, Building2, FileCheck, File, Trash2, Search } from 'lucide-react';
 import { Button } from './ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import type { Agreement } from './AgreementsLandingPage';
 import { getAgreementById, deleteAgreement, deleteMockAgreement } from '../utils/agreementStorage';
 import { useState } from 'react';
+import { ALL_DOCUMENTS as GENERATED_ALL_DOCUMENTS } from '../generated/documents';
 
-// All available documents (for reference)
-const ALL_DOCUMENTS = [
+// From public/docs + legacy ids for backward compat with saved agreements
+const LEGACY_DOCUMENTS = [
   { id: 'doc-1', name: 'Commercial Lease Agreement - Buyer Triple Net.pdf' },
-  { id: 'doc-2', name: 'Commercial Rental Agreement Form.pdf' },
 ];
+const ALL_DOCUMENTS = [...GENERATED_ALL_DOCUMENTS, ...LEGACY_DOCUMENTS];
 
 // Helper function to get file type icon
 const getFileIcon = (fileName: string) => {
@@ -145,61 +146,64 @@ export function AgreementPreview() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header - Same as other pages */}
-      <header className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="flex items-center justify-between max-w-full mx-auto">
+    <div className="min-h-screen bg-white flex flex-col">
+      {/* Header - Match AgreementsLandingPage */}
+      <header className="bg-white border-b border-gray-200 px-6 py-3 sticky top-0 z-30">
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1">
-              <span className="text-sm">☰</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <span className="text-red-600 font-bold">LOCATION</span>
-              <span className="bg-red-600 text-white px-1.5 py-0.5 text-xs">HQ</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-red-600 font-bold text-lg">LOCATION</span>
+              <span className="bg-red-600 text-white px-1.5 py-0.5 text-xs font-bold">HQ</span>
             </div>
           </div>
           
           <div className="flex items-center gap-4">
             <button className="text-gray-600 hover:text-gray-900">
-              🔍
+              <Search className="w-5 h-5" />
             </button>
             <button className="text-gray-600 hover:text-gray-900">
-              👤
+              <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
+                <span className="text-sm">👤</span>
+              </div>
             </button>
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
-      <div className="w-full">
-        {/* Content Header */}
-        <div className="bg-white border-b border-gray-200">
-          <div className="max-w-7xl mx-auto px-6 py-6">
-            <div className="flex items-center justify-between mb-6">
-              <Button
-                variant="ghost"
-                onClick={() => navigate('/agreements')}
-                className="gap-2"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                Back to Agreements
-              </Button>
-              <Button
+      {/* Back button - below header, outside app bar - Match AgreementsLandingPage */}
+      <div className="bg-white border-b border-gray-200 px-6 py-3">
+        <div className="max-w-7xl mx-auto">
+          <button
+            onClick={() => navigate('/agreements')}
+            className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back
+          </button>
+        </div>
+      </div>
+
+      {/* Main Content - Match AgreementsLandingPage layout */}
+      <div className="flex-1 bg-gray-50">
+        {/* Page Header - Match landing page structure */}
+        <div className="bg-white px-6 py-6 border-b border-gray-200">
+          <div className="max-w-7xl mx-auto">
+            <div className="flex items-center justify-between mb-6" style={{ marginBottom: '20px' }}>
+              <h1 className="text-3xl font-bold text-gray-900">Agreement details</h1>
+              <button
                 onClick={handleEdit}
-                className="bg-blue-600 hover:bg-blue-700 text-white gap-2"
+                className="bg-white hover:bg-gray-50 text-blue-600 border-2 border-blue-600 px-6 py-2 rounded-full font-medium text-sm transition-colors flex items-center gap-2"
               >
                 <FileCheck className="w-4 h-4" />
                 Edit Agreement
-              </Button>
+              </button>
             </div>
-
             <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="mb-6"
+              className="text-sm text-gray-600"
             >
-              <h1 className="text-3xl font-bold text-gray-900 mb-4">Agreement details</h1>
-              <div className="flex items-center gap-4 text-gray-600 flex-wrap">
+              <div className="flex items-center gap-4 flex-wrap">
                 <div className="flex items-center gap-2">
                   <span className="font-medium text-gray-900">Agreement ID:</span>
                   <span>{agreement.agreementNumber}</span>
@@ -220,14 +224,14 @@ export function AgreementPreview() {
             <TabsList className="mb-6 w-full justify-start overflow-x-auto">
               <TabsTrigger 
                 value="information" 
-                className="gap-2 whitespace-nowrap data-[state=active]:bg-gray-200 data-[state=active]:text-gray-900"
+                className="gap-2 whitespace-nowrap text-sm data-[state=active]:bg-gray-200 data-[state=active]:text-gray-900"
               >
                 <FileText className="w-4 h-4" />
                 Information
               </TabsTrigger>
               <TabsTrigger 
                 value="documents" 
-                className="gap-2 whitespace-nowrap data-[state=active]:bg-gray-200 data-[state=active]:text-gray-900"
+                className="gap-2 whitespace-nowrap text-sm data-[state=active]:bg-gray-200 data-[state=active]:text-gray-900"
               >
                 <Building2 className="w-4 h-4" />
                 Documents
@@ -241,31 +245,32 @@ export function AgreementPreview() {
                 transition={{ delay: 0.1 }}
                 className="space-y-6"
               >
-                {/* Identification Section */}
+                {/* Identification Section - Match landing page typography (text-sm) */}
                 <div className="bg-white border border-gray-200 rounded-lg p-6">
-                  <h2 className="text-xl font-semibold text-gray-900 mb-6 pb-4 border-b border-gray-200">Identification</h2>
+                  <h2 className="text-base font-semibold text-gray-900 mb-4 pb-4 border-b border-gray-200">Identification</h2>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-4">
                     <div>
-                      <label className="block mb-2 text-sm font-medium text-gray-700">Agreement name</label>
-                      <p className="text-gray-900 text-base">{agreement.name}</p>
+                      <label className="block mb-1.5 text-sm font-medium text-gray-700">Agreement name</label>
+                      <p className="text-gray-900 text-sm">{agreement.name}</p>
+                      <div style={{height:'10px'}}></div>
                     </div>
                     
                     <div>
-                      <label className="block mb-2 text-sm font-medium text-gray-700">Agreement date</label>
-                      <p className="text-gray-900 text-base">{agreement.date}</p>
+                      <label className="block mb-1.5 text-sm font-medium text-gray-700">Agreement date</label>
+                      <p className="text-gray-900 text-sm">{agreement.date}</p>
                     </div>
                   </div>
 
                   {agreement.notes && (
-                    <div className="mt-6">
-                      <label className="block mb-2 text-sm font-medium text-gray-700">Notes</label>
-                      <p className="text-gray-900 text-base leading-relaxed">{agreement.notes}</p>
+                    <div className="mt-4">
+                      <label className="block mb-1.5 text-sm font-medium text-gray-700">Notes</label>
+                      <p className="text-gray-900 text-sm leading-relaxed">{agreement.notes}</p>
                     </div>
                   )}
                 </div>
 
-                {/* Maintenance Section - Only show if exists */}
+                {/* Maintenance Section - Only show if exists - Match landing page typography */}
                 {agreement.maintenance && (
                   <motion.div
                     initial={{ opacity: 0, y: 20 }}
@@ -273,26 +278,26 @@ export function AgreementPreview() {
                     transition={{ delay: 0.2 }}
                     className="bg-white border border-gray-200 rounded-lg p-6"
                   >
-                    <h2 className="text-xl font-semibold text-gray-900 mb-6 pb-4 border-b border-gray-200">Maintenance</h2>
+                    <h2 className="text-base font-semibold text-gray-900 mb-4 pb-4 border-b border-gray-200">Maintenance</h2>
                     
-                    <div className="space-y-6">
+                    <div className="space-y-4">
                       <div>
-                        <label className="block mb-2 text-sm font-medium text-gray-700">Responsible party</label>
-                        <p className="text-gray-900 text-base">{agreement.maintenance.responsibleParty}</p>
+                        <label className="block mb-1.5 text-sm font-medium text-gray-700">Responsible party</label>
+                        <p className="text-gray-900 text-sm">{agreement.maintenance.responsibleParty}</p>
                       </div>
                       
                       <div>
-                        <label className="block mb-2 text-sm font-medium text-gray-700">
+                        <label className="block mb-1.5 text-sm font-medium text-gray-700">
                           Maintenance owner responsibility
                         </label>
-                        <p className="text-gray-900 text-base leading-relaxed">
+                        <p className="text-gray-900 text-sm leading-relaxed">
                           {agreement.maintenance.ownerResponsibility}
                         </p>
                       </div>
                       
                       <div>
-                        <label className="block mb-2 text-sm font-medium text-gray-700">Maintenance reasoning</label>
-                        <p className="text-gray-900 text-base leading-relaxed">{agreement.maintenance.reasoning}</p>
+                        <label className="block mb-1.5 text-sm font-medium text-gray-700">Maintenance reasoning</label>
+                        <p className="text-gray-900 text-sm leading-relaxed">{agreement.maintenance.reasoning}</p>
                       </div>
                     </div>
                   </motion.div>
@@ -313,13 +318,13 @@ export function AgreementPreview() {
                           className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
                         >
                           {getFileIcon(doc.name)}
-                          <span className="text-gray-900 font-medium">{doc.name}</span>
+                          <span className="text-gray-900 font-medium text-sm">{doc.name}</span>
                         </div>
                       );
                     })}
                   </div>
                 ) : (
-                  <p className="text-gray-600 text-center py-8">No documents attached to this agreement.</p>
+                  <p className="text-gray-600 text-sm text-center py-8">No documents attached to this agreement.</p>
                 )}
               </div>
             </TabsContent>
@@ -327,14 +332,13 @@ export function AgreementPreview() {
 
           {/* Delete Button - At the bottom */}
           <div className="mt-16 pb-8 border-t-2 border-gray-300 pt-10" style={{paddingTop:24}}>
-            <Button
+            <button
               onClick={handleDeleteClick}
-              variant="outline"
-              className="text-red-600 border-red-300 hover:bg-red-50 hover:border-red-400 gap-2"
+              className="bg-white hover:bg-gray-50 text-red-600 border-2 border-red-600 px-6 py-2 rounded-full font-medium text-sm transition-colors flex items-center gap-2"
             >
               <Trash2 className="w-4 h-4" />
               Delete Agreement
-            </Button>
+            </button>
           </div>
         </div>
       </div>

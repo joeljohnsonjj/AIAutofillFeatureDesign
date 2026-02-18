@@ -56,7 +56,10 @@
             "vite": "6.3.5"
       },
       "scripts": {
+            "generate-documents": "node scripts/generate-documents.js",
+            "predev": "npm run generate-documents",
             "dev": "vite",
+            "prebuild": "npm run generate-documents",
             "build": "vite build",
             "stub-server": "node server/stub-ocr-server.js"
       }
