@@ -37,14 +37,6 @@ npm run stub-server
 ```
 The stub server provides mock API responses for development and testing.
 
-## Key Features
-
-- **Dynamic Document Management:** Documents are automatically loaded from `public/docs/`
-- **AI-Powered Search:** Search across selected documents with AI interpretation
-- **Smart Navigation:** Navigate through AI-generated snippets with legal evidence
-- **Document Filtering:** Select specific documents before searching
-- **Agreement Management:** Save drafts and finalize agreements with tracked document associations
-
 ## Project Structure
 
 ```

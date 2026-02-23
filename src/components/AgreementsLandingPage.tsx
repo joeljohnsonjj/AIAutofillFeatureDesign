@@ -139,10 +139,27 @@ export function AgreementsLandingPage() {
     // Apply current search filter if any
     if (searchTerm) {
       const filtered = sorted.filter(
-        (agreement) =>
-          agreement.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          agreement.agreementNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          agreement.status.toLowerCase().includes(searchTerm.toLowerCase())
+        (agreement) => {
+          const searchLower = searchTerm.toLowerCase();
+          
+          // Search in name, ID, and status
+          const matchesBasic = 
+            agreement.name.toLowerCase().includes(searchLower) ||
+            agreement.agreementNumber.toLowerCase().includes(searchLower) ||
+            agreement.status.toLowerCase().includes(searchLower);
+          
+          // Search in date fields
+          const creationDate = agreement.date;
+          const lastModifiedDate = agreement.lastModified 
+            ? new Date(agreement.lastModified).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })
+            : agreement.date;
+          
+          const matchesDate = 
+            creationDate.includes(searchTerm) ||
+            lastModifiedDate.includes(searchTerm);
+          
+          return matchesBasic || matchesDate;
+        }
       );
       setFilteredAgreements(filtered);
     } else {
@@ -154,10 +171,27 @@ export function AgreementsLandingPage() {
     setSearchTerm(value);
     const sorted = sortAgreements(allAgreements);
     const filtered = sorted.filter(
-      (agreement: Agreement) =>
-        agreement.name.toLowerCase().includes(value.toLowerCase()) ||
-        agreement.agreementNumber.toLowerCase().includes(value.toLowerCase()) ||
-        agreement.status.toLowerCase().includes(value.toLowerCase())
+      (agreement: Agreement) => {
+        const searchLower = value.toLowerCase();
+        
+        // Search in name, ID, and status
+        const matchesBasic = 
+          agreement.name.toLowerCase().includes(searchLower) ||
+          agreement.agreementNumber.toLowerCase().includes(searchLower) ||
+          agreement.status.toLowerCase().includes(searchLower);
+        
+        // Search in date fields
+        const creationDate = agreement.date;
+        const lastModifiedDate = agreement.lastModified 
+          ? new Date(agreement.lastModified).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })
+          : agreement.date;
+        
+        const matchesDate = 
+          creationDate.includes(value) ||
+          lastModifiedDate.includes(value);
+        
+        return matchesBasic || matchesDate;
+      }
     );
     setFilteredAgreements(filtered);
   };
@@ -229,7 +263,7 @@ export function AgreementsLandingPage() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
                 <Input
                   type="text"
-                  placeholder="Search"
+                  placeholder="Search by name, ID, status, or date (MM/DD/YYYY)"
                   value={searchTerm}
                   onChange={(e) => handleSearch(e.target.value)}
                   className="pl-10 h-10 border-gray-300 rounded"
