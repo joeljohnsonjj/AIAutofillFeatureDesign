@@ -418,7 +418,7 @@ export function CategorySection({
         <div className="space-y-4">
           {/* 1. Document Selection Table - Maintenance section starts here */}
           {documents.length > 0 && (
-            <div className="mb-6" data-tutorial="documents">
+            <div className="mb-6">
               <p className="text-sm text-gray-500 mb-3">
                 The documents below are available in the Documents tab on the Land details page
               </p>

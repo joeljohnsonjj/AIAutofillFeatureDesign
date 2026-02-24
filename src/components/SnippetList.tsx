@@ -51,9 +51,6 @@ interface SnippetListProps {
   onClose: () => void;
   searchQuery?: string;
   isAnalyzing?: boolean;
-  tutorialActive?: boolean;
-  tutorialStep?: number;
-  tutorialAction?: string;
 }
 
 export function SnippetList({
@@ -62,9 +59,6 @@ export function SnippetList({
   onClose,
   searchQuery,
   isAnalyzing = false,
-  tutorialActive = false,
-  tutorialStep = 0,
-  tutorialAction,
 }: SnippetListProps) {
   const snippetsContainerRef = useRef<HTMLDivElement>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -74,26 +68,6 @@ export function SnippetList({
   useEffect(() => {
     setCurrentIndex(0);
   }, [snippets]);
-
-  // Auto-preview disabled - users will only see snippet content in carousel
-  // Ghost text will only appear when Accept button is clicked
-
-  // Handle tutorial auto-actions
-  useEffect(() => {
-    if (!tutorialActive || !tutorialAction) return;
-
-    if (tutorialAction === 'navigate') {
-      // Auto-navigate to next snippet after 1 second
-      setTimeout(() => {
-        setCurrentIndex((prev) => (prev + 1) % snippets.length);
-      }, 1000);
-    } else if (tutorialAction === 'flip') {
-      // Auto-flip the card after 1 second
-      setTimeout(() => {
-        setIsFlipped((prev) => !prev);
-      }, 1000);
-    }
-  }, [tutorialActive, tutorialAction, tutorialStep, snippets.length]);
 
   if (snippets.length === 0) return null;
 
@@ -150,7 +124,6 @@ export function SnippetList({
           opacity: isDeleted ? 0.55 : 1,
         }}
         onClick={handleCardClick}
-        data-tutorial="snippet-card"
         onMouseEnter={() => isDeleted && setShowDeletedPopup(true)}
         onMouseLeave={() => isDeleted && setShowDeletedPopup(false)}
       >
@@ -261,7 +234,6 @@ export function SnippetList({
                         ? 'border-yellow-400 bg-yellow-50 hover:bg-yellow-100 hover:border-yellow-500 text-yellow-800'
                         : 'border-red-300 hover:bg-red-50 hover:border-red-400 text-red-700'
                     }`}
-                    data-tutorial="accept-button"
                   >
                     <Check className="w-4 h-4" />
                     <span className="text-sm font-medium">{isUpdated ? 'Approve Changes' : 'Accept'}</span>
@@ -284,7 +256,7 @@ export function SnippetList({
                 {/* Left side - Reference Tags - show if there are multiple pages */}
                 {((hasMultipleDocuments && currentDocumentData && currentDocumentData.pageReferences && currentDocumentData.pageReferences.length > 0) ||
                   (!hasMultipleDocuments && snippet.pdfReference.pageReferences && snippet.pdfReference.pageReferences.length > 0)) && (
-                  <div className="flex items-center gap-2 flex-wrap" data-tutorial="page-references">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-xs font-medium text-gray-700">References:</span>
                     <button
                       onClick={(e) => {
@@ -405,7 +377,6 @@ export function SnippetList({
                         ? 'border-yellow-400 bg-yellow-50 hover:bg-yellow-100 hover:border-yellow-500 text-yellow-800'
                         : 'border-red-300 hover:bg-red-50 hover:border-red-400 text-red-700'
                     }`}
-                    data-tutorial="accept-button"
                   >
                     <Check className="w-4 h-4" />
                     <span className="text-sm font-medium">{isUpdated ? 'Approve Changes' : 'Accept'}</span>
@@ -439,7 +410,7 @@ export function SnippetList({
               
               {/* Navigation Controls */}
               {snippets.length > 1 && (
-                <div className="flex items-center ml-auto gap-2 mr-2" data-tutorial="snippet-navigation">
+                <div className="flex items-center ml-auto gap-2 mr-2">
                   <button
                     onClick={handlePrevious}
                     className="text-black hover:bg-white/20 rounded p-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"

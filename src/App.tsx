@@ -3,7 +3,6 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { AgreementForm } from './components/AgreementForm';
 import type { Document } from './components/DocumentSelector';
 import { DOCUMENTS as GENERATED_DOCUMENTS } from './generated/documents';
-import { TutorialOverlay } from './components/TutorialOverlay';
 import { Search, ArrowLeft } from 'lucide-react';
 import { saveAgreement, getAgreementById, updateAgreement } from './utils/agreementStorage';
 import type { Agreement } from './components/AgreementsLandingPage';
@@ -352,13 +351,6 @@ export default function App() {
   const [isAIApproved, setIsAIApproved] = useState(false);
   const [aiApprovedFormData, setAiApprovedFormData] = useState<Record<string, string>>({});
   
-  // Tutorial state
-  const [showTutorial, setShowTutorial] = useState(false);
-  const [tutorialStep, setTutorialStep] = useState(0);
-  const [tutorialCompleted, setTutorialCompleted] = useState(() => {
-    return localStorage.getItem('aiTutorialCompleted') === 'true';
-  });
-  
   // Track checked documents (PDFs referenced by AI)
   const [checkedDocuments, setCheckedDocuments] = useState<Set<string>>(new Set());
   const checkedDocumentsRef = useRef<Set<string>>(new Set());
@@ -367,112 +359,6 @@ export default function App() {
   const [appliedSnippets, setAppliedSnippets] = useState<Set<string>>(new Set());
   const appliedSnippetsRef = useRef<Set<string>>(new Set());
   const appliedSnippetDocumentIdsRef = useRef<Set<string>>(new Set());
-  
-  // Tutorial steps definition
-  const tutorialSteps = [
-    {
-      id: 'navigation',
-      title: 'Navigate Through Suggestions',
-      message: 'Use the left and right arrow buttons to navigate through different AI suggestions. You can also use your mouse wheel to scroll through snippets.',
-      target: '[data-tutorial="snippet-navigation"]',
-      position: 'left' as const,
-      action: 'Watch as we navigate through snippets...',
-      autoAction: 'navigate' as const,
-    },
-    {
-      id: 'flip-card',
-      title: 'View PDF Reference',
-      message: 'Click anywhere on the snippet card to flip it and see the PDF reference with highlighted text showing where the AI found this information.',
-      target: '[data-tutorial="snippet-card"]',
-      position: 'left' as const,
-      action: 'Watch as the card flips to show the PDF reference...',
-      autoAction: 'flip' as const,
-    },
-    {
-      id: 'page-navigation',
-      title: 'Navigate PDF Pages',
-      message: 'When viewing the PDF reference, you can click on the page number buttons to jump to different pages that reference this information.',
-      target: '[data-tutorial="page-references"]',
-      position: 'left' as const,
-      action: 'See the PDF scroll to different referenced pages...',
-    },
-    {
-      id: 'flip-back',
-      title: 'Return to Summary',
-      message: 'Click the card again to flip back to the AI summary view where you can see all the field mappings.',
-      target: '[data-tutorial="snippet-card"]',
-      position: 'left' as const,
-      action: 'Flipping back to summary view...',
-      autoAction: 'flip' as const,
-    },
-    {
-      id: 'accept-button',
-      title: 'Accept AI Suggestions',
-      message: 'Click the Accept button to apply the AI suggestions to your form. The split screen will collapse and all fields will be filled with the selected snippet data.',
-      target: '[data-tutorial="accept-button"]',
-      position: 'left' as const,
-      action: 'This will fill the form fields with the AI suggestions',
-    },
-    {
-      id: 'form-fields',
-      title: 'View Filled Fields',
-      message: 'After accepting, the form fields will be filled with the AI-generated data. You can review and edit them as needed.',
-      target: '[data-section="maintenance"]',
-      position: 'right' as const,
-      action: 'The fields are now populated with AI data',
-    },
-    {
-      id: 'document-selection',
-      title: 'Select Documents',
-      message: 'Check or uncheck documents to control which files the AI searches through. Only checked documents will be analyzed for suggestions.',
-      target: '[data-tutorial="documents"]',
-      position: 'top' as const,
-      action: 'You can select which documents to analyze',
-    },
-  ];
-  
-  // Tutorial handlers
-  const handleTutorialNext = () => {
-    if (tutorialStep < tutorialSteps.length - 1) {
-      setTutorialStep(tutorialStep + 1);
-    }
-  };
-  
-  const handleTutorialSkip = () => {
-    setShowTutorial(false);
-    setTutorialStep(0);
-    localStorage.setItem('aiTutorialCompleted', 'true');
-    setTutorialCompleted(true);
-  };
-  
-  const handleTutorialComplete = () => {
-    setShowTutorial(false);
-    setTutorialStep(0);
-    localStorage.setItem('aiTutorialCompleted', 'true');
-    setTutorialCompleted(true);
-  };
-  
-  // Handle automatic tutorial actions
-  const handleTutorialAutoAction = (action: string) => {
-    if (action === 'navigate') {
-      // Auto-navigate to next snippet
-      // This is handled by SnippetList, we'll pass a prop
-    } else if (action === 'flip') {
-      // Auto-flip the snippet card
-      // This is handled by SnippetList, we'll pass a prop
-    }
-  };
-  
-  // Start tutorial when AI mode is enabled for the first time
-  useEffect(() => {
-    if (aiMode && !tutorialCompleted && snippets.length > 0 && !showTutorial) {
-      // Small delay to let the split screen render
-      setTimeout(() => {
-        setShowTutorial(true);
-        setTutorialStep(0);
-      }, 500);
-    }
-  }, [aiMode, snippets.length, tutorialCompleted, showTutorial]);
   
   // Map snippets to documents using snippet's documentId
   const getDocumentIdForSnippet = (snippet: any): string | null => {
@@ -1255,11 +1141,7 @@ export default function App() {
   };
 
   const handleFinish = () => {
-    // Finish button - only enabled when AI is approved (if AI mode is ON) or when AI mode is OFF
-    if (aiMode && !isAIApproved) {
-      // Should not be called if button is disabled, but add safety check
-      return;
-    }
+
     
     // Documents to save: prefer applied snippet documents (from Accept), else use checked documents
     const appliedDocIds = appliedSnippetDocumentIdsRef.current;
@@ -1508,17 +1390,6 @@ export default function App() {
               onGlobalSearch={handleGlobalSearch}
             />
           </main>
-          
-          {/* Tutorial Overlay */}
-          <TutorialOverlay
-            isActive={showTutorial}
-            currentStep={tutorialStep}
-            steps={tutorialSteps}
-            onNext={handleTutorialNext}
-            onSkip={handleTutorialSkip}
-            onComplete={handleTutorialComplete}
-            onAutoAction={handleTutorialAutoAction}
-          />
         </>
       ) : (
         /* Original Single Pane Layout */
