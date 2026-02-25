@@ -24,6 +24,29 @@ export interface BackendQueryResponse {
   error?: string;
 }
 
+// Streaming response types (NDJSON format)
+export interface StreamObligationEvent {
+  type: 'obligation';
+  data: BackendObligation;
+}
+
+export interface StreamMetadataEvent {
+  type: 'metadata';
+  data: {
+    query: string;
+    total_documents_searched: number;
+    total_obligations_found: number;
+    processed_at: string;
+  };
+}
+
+export interface StreamErrorEvent {
+  type: 'error';
+  message: string;
+}
+
+export type StreamEvent = StreamObligationEvent | StreamMetadataEvent | StreamErrorEvent;
+
 /**
  * Query legal obligations from the backend
  * @param query - Search query string (keywords from the search bar, can be empty)
@@ -109,6 +132,134 @@ export async function queryObligations(query: string, documentIds?: string[]): P
     const enhancedError = error instanceof Error ? error : new Error(String(error));
     (enhancedError as any).isConnectionError = isConnectionError;
     
+    throw enhancedError;
+  }
+}
+
+/**
+ * Stream legal obligations from the backend (NDJSON format)
+ * @param query - Search query string (keywords from the search bar, can be empty)
+ * @param documentIds - Array of document names/IDs to filter by (optional)
+ * @param onObligation - Callback function called for each obligation as it arrives
+ * @param onMetadata - Callback function called when metadata arrives
+ * @param onError - Callback function called if an error occurs
+ * @returns Promise that resolves when streaming is complete
+ */
+export async function queryObligationsStream(
+  query: string,
+  documentIds?: string[],
+  callbacks?: {
+    onObligation?: (obligation: BackendObligation, index: number) => void;
+    onMetadata?: (metadata: StreamMetadataEvent['data']) => void;
+    onError?: (error: string) => void;
+    onComplete?: () => void;
+  }
+): Promise<void> {
+  try {
+    console.log('[DEBUG apiService] queryObligationsStream called', {query, documentIds, apiBaseUrl: API_BASE_URL});
+    
+    const requestBody: {
+      query: string;
+      document_ids?: string[];
+    } = {
+      query: query || '',
+    };
+    
+    // Include document_ids only if provided and not empty
+    if (documentIds && documentIds.length > 0) {
+      requestBody.document_ids = documentIds;
+    }
+    
+    const url = `${API_BASE_URL}/query/stream`;
+    
+    console.log('[DEBUG apiService] Making streaming POST request', {url, body: requestBody});
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+    });
+    
+    console.log('[DEBUG apiService] Streaming response received', {status: response.status, ok: response.ok});
+    
+    if (!response.ok) {
+      const isServiceDown = response.status === 503 || response.status === 502 || response.status === 504;
+      const error = new Error(`API request failed with status ${response.status}`);
+      (error as any).isConnectionError = isServiceDown;
+      throw error;
+    }
+    
+    if (!response.body) {
+      throw new Error('Response body is null');
+    }
+    
+    // Read the stream line by line (NDJSON format)
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let obligationIndex = 0;
+    
+    while (true) {
+      const { done, value } = await reader.read();
+      
+      if (done) {
+        console.log('[DEBUG apiService] Stream complete');
+        callbacks?.onComplete?.();
+        break;
+      }
+      
+      // Decode the chunk and add to buffer
+      buffer += decoder.decode(value, { stream: true });
+      
+      // Process complete lines (NDJSON format: one JSON object per line)
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || ''; // Keep the incomplete line in the buffer
+      
+      for (const line of lines) {
+        if (!line.trim()) continue; // Skip empty lines
+        
+        try {
+          const event: StreamEvent = JSON.parse(line);
+          
+          if (event.type === 'obligation') {
+            console.log(`[DEBUG apiService] Received obligation ${obligationIndex + 1}:`, event.data.DutyType);
+            callbacks?.onObligation?.(event.data, obligationIndex);
+            obligationIndex++;
+          } else if (event.type === 'metadata') {
+            console.log('[DEBUG apiService] Received metadata:', event.data);
+            callbacks?.onMetadata?.(event.data);
+          } else if (event.type === 'error') {
+            console.error('[DEBUG apiService] Received error:', event.message);
+            callbacks?.onError?.(event.message);
+          }
+        } catch (parseError) {
+          console.error('[DEBUG apiService] Failed to parse NDJSON line:', line, parseError);
+        }
+      }
+    }
+    
+  } catch (error) {
+    console.error('[DEBUG apiService] queryObligationsStream error caught', {error: error instanceof Error ? error.message : String(error)});
+    
+    // Check if it's a connection error
+    const isConnectionError = 
+      error instanceof TypeError && error.message.includes('Failed to fetch') ||
+      error instanceof TypeError && error.message.includes('NetworkError') ||
+      (error instanceof Error && (
+        error.message.includes('NetworkError') ||
+        error.message.includes('Failed to fetch') ||
+        error.message.includes('ERR_NETWORK') ||
+        error.message.includes('ERR_INTERNET_DISCONNECTED') ||
+        error.message.includes('ERR_CONNECTION_REFUSED')
+      ));
+    
+    // Create a custom error with connection flag
+    const enhancedError = error instanceof Error ? error : new Error(String(error));
+    (enhancedError as any).isConnectionError = isConnectionError;
+    
+    callbacks?.onError?.(enhancedError.message);
     throw enhancedError;
   }
 }

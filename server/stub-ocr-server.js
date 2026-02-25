@@ -847,6 +847,68 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // Streaming endpoint: /query/stream (NDJSON format)
+  if (req.method === 'POST' && req.url === '/query/stream') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', () => {
+      try {
+        const parsed = body ? JSON.parse(body) : {};
+        const query = parsed.query || '';
+        const documentIds = parsed.document_ids || [];
+
+        // Set headers for NDJSON streaming
+        res.setHeader('Content-Type', 'application/x-ndjson');
+        res.setHeader('Transfer-Encoding', 'chunked');
+        res.writeHead(200);
+
+        let obligationIndex = 0;
+        const totalObligations = stubObligations.length;
+
+        // Stream each obligation with a delay to simulate real streaming
+        // 400ms delay (0.4 seconds) - realistic for LLM generation speed
+        const streamInterval = setInterval(() => {
+          if (obligationIndex < totalObligations) {
+            const obligation = stubObligations[obligationIndex];
+            
+            // Send obligation as NDJSON line
+            const obligationEvent = {
+              type: 'obligation',
+              data: obligation
+            };
+            res.write(JSON.stringify(obligationEvent) + '\n');
+            
+            obligationIndex++;
+          } else {
+            // All obligations sent, send metadata and close
+            const metadataEvent = {
+              type: 'metadata',
+              data: {
+                query,
+                total_documents_searched: documentIds.length || 1,
+                total_obligations_found: totalObligations,
+                processed_at: new Date().toISOString()
+              }
+            };
+            res.write(JSON.stringify(metadataEvent) + '\n');
+            res.end();
+            clearInterval(streamInterval);
+          }
+        }, 400); // Send one obligation every 400ms (0.4 seconds)
+
+      } catch (e) {
+        const errorEvent = {
+          type: 'error',
+          message: 'Invalid JSON body'
+        };
+        res.write(JSON.stringify(errorEvent) + '\n');
+        res.end();
+      }
+    });
+    return;
+  }
+
+  // Non-streaming endpoint: /query (returns all at once)
   if (req.method === 'POST' && req.url === '/query') {
     let body = '';
     req.on('data', chunk => { body += chunk; });
@@ -880,5 +942,7 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`Stub OCR server at http://localhost:${PORT} (POST /query)`);
+  console.log(`Stub OCR server at http://localhost:${PORT}`);
+  console.log(`  - POST /query (non-streaming, returns all results at once)`);
+  console.log(`  - POST /query/stream (streaming NDJSON, progressive results)`);
 });

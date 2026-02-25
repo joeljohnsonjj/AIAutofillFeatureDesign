@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 // Note: react-pdf v10 may bundle styles automatically
@@ -53,6 +53,13 @@ export function PDFViewer({ documentName, pageNumbers, onPageChange, className =
   };
 
   const pdfUrl = getPdfUrl(documentName);
+  
+  // Memoize PDF options to prevent unnecessary reloads
+  const pdfOptions = useMemo(() => ({
+    cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/',
+    cMapPacked: true,
+    standardFontDataUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/standard_fonts/',
+  }), []); // Empty deps - these options never change
   
   // Debug: Log the PDF URL being requested and test accessibility
   useEffect(() => {
@@ -143,7 +150,6 @@ export function PDFViewer({ documentName, pageNumbers, onPageChange, className =
       pdfUrl,
       documentName
     });
-    const fileName = documentName.endsWith('.pdf') ? documentName : `${documentName}.pdf`;
     setError(`Failed to load PDF: ${documentName}. Check console for details.`);
     setLoading(false);
   };
@@ -262,11 +268,7 @@ export function PDFViewer({ documentName, pageNumbers, onPageChange, className =
             </div>
           }
           className="flex flex-col items-center w-full"
-          options={{
-            cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/',
-            cMapPacked: true,
-            standardFontDataUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/standard_fonts/',
-          }}
+          options={pdfOptions}
         >
           {/* Render all pages from the document (scrollable from top to end) */}
           {/* Highlight only the referenced pages */}

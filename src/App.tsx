@@ -6,7 +6,7 @@ import { DOCUMENTS as GENERATED_DOCUMENTS } from './generated/documents';
 import { Search, ArrowLeft } from 'lucide-react';
 import { saveAgreement, getAgreementById, updateAgreement } from './utils/agreementStorage';
 import type { Agreement } from './components/AgreementsLandingPage';
-import { queryObligations, transformObligationToSnippet } from './services/apiService';
+import { queryObligationsStream, transformObligationToSnippet } from './services/apiService';
 
 // Import tests for development (available in browser console)
 if (process.env.NODE_ENV === 'development') {
@@ -991,54 +991,87 @@ export default function App() {
     // #endregion
     
     try {
-      // Call backend API with the search query and selected documents
+      // Call backend API with streaming to get obligations progressively
       // API should be called even if query is empty (per requirements)
-      console.log('[DEBUG App.tsx] About to call queryObligations', {
+      console.log('[DEBUG App.tsx] About to call queryObligationsStream', {
         query: query || '',
         documentNames,
         documentNamesLength: documentNames.length
       });
-      const response = await queryObligations(query || '', documentNames.length > 0 ? documentNames : undefined);
-      console.log('[DEBUG App.tsx] queryObligations response received', {
-        resultsCount: response.results?.length,
-        totalObligations: response.total_obligations_found
-      });
       
-      // #region agent log
-      console.log('[DEBUG] Backend API response received', {resultsCount: response.results.length, totalObligations: response.total_obligations_found, query: response.query});
-      fetch('http://127.0.0.1:7242/ingest/c69e181c-4485-4aaa-8fb9-54a919c8d97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:1285',message:'Backend API response received',data:{resultsCount:response.results.length,totalObligations:response.total_obligations_found,query:response.query},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'})}).catch(()=>{});
-      // #endregion
+      const streamedSnippets: any[] = [];
+      let totalObligationsFound = 0;
+      let updateTimer: NodeJS.Timeout | null = null;
       
-      // Transform backend results to snippet format
-      const transformedSnippets = response.results.map((obligation, index) => 
-        transformObligationToSnippet(obligation, index)
+      await queryObligationsStream(
+        query || '',
+        documentNames.length > 0 ? documentNames : undefined,
+        {
+          onObligation: (obligation, index) => {
+            console.log(`[DEBUG App.tsx] Received obligation ${index + 1}:`, obligation.DutyType);
+            
+            // Transform obligation to snippet format
+            const snippet = transformObligationToSnippet(obligation, index);
+            
+            // Calculate confidence score
+            const baseConfidence = 95 - (index * 5);
+            const confidenceScore = Math.max(60, Math.min(100, baseConfidence));
+            
+            const snippetWithConfidence = {
+              ...snippet,
+              confidenceScore,
+            };
+            
+            streamedSnippets.push(snippetWithConfidence);
+            
+            // Batch updates to prevent excessive re-renders
+            // Clear any pending update
+            if (updateTimer) {
+              clearTimeout(updateTimer);
+            }
+            
+            // Schedule update after a brief delay (batching)
+            updateTimer = setTimeout(() => {
+              setSnippets([...streamedSnippets]);
+              console.log(`[DEBUG App.tsx] Batched update: ${streamedSnippets.length} snippets`);
+            }, 50); // 50ms debounce - will batch multiple rapid updates
+          },
+          onMetadata: (metadata) => {
+            console.log('[DEBUG App.tsx] Received metadata:', metadata);
+            totalObligationsFound = metadata.total_obligations_found;
+            
+            // #region agent log
+            console.log('[DEBUG] Backend streaming complete', {
+              resultsCount: streamedSnippets.length,
+              totalObligations: totalObligationsFound,
+              query: metadata.query
+            });
+            fetch('http://127.0.0.1:7242/ingest/c69e181c-4485-4aaa-8fb9-54a919c8d97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:1035',message:'Backend streaming complete',data:{resultsCount:streamedSnippets.length,totalObligations:totalObligationsFound,query:metadata.query},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'})}).catch(()=>{});
+            // #endregion
+          },
+          onError: (errorMessage) => {
+            console.error('[DEBUG App.tsx] Stream error:', errorMessage);
+            alert('Error during streaming: ' + errorMessage);
+          },
+          onComplete: () => {
+            console.log('[DEBUG App.tsx] Streaming complete, total snippets:', streamedSnippets.length);
+            
+            // Clear any pending timer and do final update
+            if (updateTimer) {
+              clearTimeout(updateTimer);
+            }
+            
+            // Final update with all snippets
+            setSnippets([...streamedSnippets]);
+            setIsAnalyzing(false);
+            
+            // #region agent log
+            console.log('[DEBUG] Setting final snippets state', {snippetsCount: streamedSnippets.length, firstSnippetId: streamedSnippets[0]?.id});
+            fetch('http://127.0.0.1:7242/ingest/c69e181c-4485-4aaa-8fb9-54a919c8d97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:1046',message:'Setting final snippets state',data:{snippetsCount:streamedSnippets.length,firstSnippetId:streamedSnippets[0]?.id},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H5'})}).catch(()=>{});
+            // #endregion
+          }
+        }
       );
-      
-      // #region agent log
-      console.log('[DEBUG] Snippets transformed', {transformedCount: transformedSnippets.length, firstSnippetTitle: transformedSnippets[0]?.title});
-      fetch('http://127.0.0.1:7242/ingest/c69e181c-4485-4aaa-8fb9-54a919c8d97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:1288',message:'Snippets transformed',data:{transformedCount:transformedSnippets.length,firstSnippetTitle:transformedSnippets[0]?.title},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'})}).catch(()=>{});
-      // #endregion
-      
-      // Calculate confidence scores based on relevance
-      const snippetsWithConfidence = transformedSnippets.map((snippet, index) => {
-        // Higher confidence for earlier results (backend already ranks by relevance)
-        const baseConfidence = 95 - (index * 5);
-        const confidenceScore = Math.max(60, Math.min(100, baseConfidence));
-        
-        return {
-          ...snippet,
-          confidenceScore,
-        };
-      });
-      
-      // #region agent log
-      console.log('[DEBUG] Setting snippets state with backend data', {snippetsCount: snippetsWithConfidence.length, firstSnippetId: snippetsWithConfidence[0]?.id});
-      fetch('http://127.0.0.1:7242/ingest/c69e181c-4485-4aaa-8fb9-54a919c8d97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:1304',message:'Setting snippets state with backend data',data:{snippetsCount:snippetsWithConfidence.length,firstSnippetId:snippetsWithConfidence[0]?.id},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H5'})}).catch(()=>{});
-      // #endregion
-      
-      // Update snippets state
-      setSnippets(snippetsWithConfidence.length > 0 ? snippetsWithConfidence : []);
-      setIsAnalyzing(false);
       
     } catch (error) {
       // #region agent log
