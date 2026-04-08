@@ -1,4 +1,5 @@
-import type { Agreement } from '../components/AgreementsLandingPage';
+import type { Agreement } from '../components/agreementModel';
+import { DEFAULT_LAND_RECORD_ID } from '../constants/landRecord';
 
 const STORAGE_KEY = 'agreements_storage';
 const DELETED_MOCK_AGREEMENTS_KEY = 'deleted_mock_agreements';
@@ -55,6 +56,12 @@ export const getAgreements = (): Agreement[] => {
 // Save an agreement to storage
 export const saveAgreement = (agreementData: Omit<Agreement, 'id' | 'agreementNumber'>, status: 'Active' | 'Needs Review', existingId?: string, existingAgreementNumber?: string): Agreement => {
   const agreements = getAgreements();
+  const existingIndex =
+    existingId != null && existingId !== ''
+      ? agreements.findIndex((a) => a.id === existingId)
+      : -1;
+  const previous = existingIndex >= 0 ? agreements[existingIndex] : undefined;
+  const now = new Date().toISOString();
   const newAgreement: Agreement = {
     id: existingId || `agreement-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
     agreementNumber: existingAgreementNumber || generateAgreementNumber(),
@@ -62,19 +69,19 @@ export const saveAgreement = (agreementData: Omit<Agreement, 'id' | 'agreementNu
     date: agreementData.date || new Date().toLocaleDateString('en-US'),
     location: agreementData.location || 'Not specified',
     status: status,
+    landRecordId: agreementData.landRecordId ?? DEFAULT_LAND_RECORD_ID,
     notes: agreementData.notes,
     maintenance: agreementData.maintenance,
-    documents: agreementData.documents || [], // Include documents field (default to empty array if not provided)
-    lastModified: new Date().toISOString(), // Track modification time
+    documents: agreementData.documents || [],
+    lastModified: now,
+    createdBy: previous?.createdBy ?? agreementData.createdBy ?? 'Current user',
+    lastUpdatedBy: agreementData.lastUpdatedBy ?? 'Current user',
   };
-  
+
   console.log('💾 Saving agreement to storage:', newAgreement);
   console.log('💾 Documents in saved agreement:', newAgreement.documents);
 
-  // Check if agreement with this ID already exists (for mock agreements being saved)
-  const existingIndex = agreements.findIndex(a => a.id === newAgreement.id);
   if (existingIndex >= 0) {
-    // Update existing
     agreements[existingIndex] = newAgreement;
   } else {
     // Add new
