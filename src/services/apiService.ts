@@ -350,3 +350,83 @@ export function transformObligationToSnippet(obligation: BackendObligation, inde
     citations: obligation.Citation, // Preserve all Citation data for PDF navigation
   };
 }
+
+// ——— HEB Legal doc analyzer — `/api/v1/chat` ———
+
+export type ChatRole = 'user' | 'assistant';
+
+export interface ChatMessage {
+  role: ChatRole;
+  content: string;
+  timestamp?: string | null;
+}
+
+export interface ChatQueryRequest {
+  query: string;
+  land_record_id: string;
+  conversation_id: string;
+  chat_history?: ChatMessage[];
+  top_k?: number;
+}
+
+export interface ChatCitation {
+  document_name: string;
+  document_id: string;
+  page_numbers: number[];
+  excerpt?: string | null;
+}
+
+export interface ChatQueryResponse {
+  query: string;
+  response: string;
+  conversation_id: string;
+  land_record_id: string;
+  documents_searched: string[];
+  sources?: ChatCitation[] | null;
+  processed_at: string;
+  error?: string | null;
+}
+
+function enhanceFetchError(error: unknown): Error {
+  const isConnectionError =
+    error instanceof TypeError && error.message.includes('Failed to fetch') ||
+    error instanceof TypeError && String(error).includes('NetworkError') ||
+    (error instanceof Error &&
+      (error.message.includes('NetworkError') ||
+        error.message.includes('Failed to fetch') ||
+        error.message.includes('ERR_NETWORK') ||
+        error.message.includes('ERR_INTERNET_DISCONNECTED') ||
+        error.message.includes('ERR_CONNECTION_REFUSED')));
+
+  const enhanced = error instanceof Error ? error : new Error(String(error));
+  (enhanced as { isConnectionError?: boolean }).isConnectionError = Boolean(isConnectionError);
+  return enhanced;
+}
+
+/**
+ * POST /api/v1/chat — conversational Q&A for a land record.
+ */
+export async function chatQuery(request: ChatQueryRequest): Promise<ChatQueryResponse> {
+  const url = `${API_BASE_URL}/api/v1/chat`;
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request),
+    });
+
+    if (!response.ok) {
+      const isServiceDown =
+        response.status === 503 || response.status === 502 || response.status === 504;
+      const err = new Error(`API request failed with status ${response.status}`);
+      (err as { isConnectionError?: boolean }).isConnectionError = isServiceDown;
+      throw err;
+    }
+
+    return (await response.json()) as ChatQueryResponse;
+  } catch (error) {
+    console.error('Error in chat query:', error);
+    throw enhanceFetchError(error);
+  }
+}

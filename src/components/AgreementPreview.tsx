@@ -1,9 +1,10 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { ArrowLeft, FileText, Building2, FileCheck, File, Trash2, Search } from 'lucide-react';
+import { ArrowLeft, FileText, Building2, FileCheck, File, Trash2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
-import type { Agreement } from './AgreementsLandingPage';
+import type { Agreement } from './agreementModel';
+import { mockAgreements } from './agreementModel';
 import { getAgreementById, deleteAgreement, deleteMockAgreement } from '../utils/agreementStorage';
 import { useState } from 'react';
 import { ALL_DOCUMENTS as GENERATED_ALL_DOCUMENTS } from '../generated/documents';
@@ -31,64 +32,6 @@ const getFileIcon = (fileName: string) => {
   }
 };
 
-const mockAgreements: Agreement[] = [
-  {
-    id: '1',
-    agreementNumber: 'AGR001234',
-    name: 'Facilities Management Agreement',
-    date: '01/15/2024',
-    location: 'Building A - Corporate Office',
-    status: 'Active',
-    notes: 'Annual facilities maintenance and upkeep agreement for corporate office building.',
-    maintenance: {
-      responsibleParty: 'Facilities Corp',
-      ownerResponsibility: 'Property oversight and compliance',
-      reasoning: 'Specialized equipment requires certified maintenance',
-    },
-  },
-  {
-    id: '2',
-    agreementNumber: 'AGR001235',
-    name: 'HVAC Service Contract',
-    date: '02/20/2024',
-    location: 'Zone 5 - Industrial Complex',
-    status: 'Active',
-    notes: 'Quarterly HVAC maintenance and emergency repair services.',
-  },
-  {
-    id: '3',
-    agreementNumber: 'AGR001236',
-    name: 'Landscaping Services Agreement',
-    date: '03/10/2024',
-    location: 'Campus East - Research Facility',
-    status: 'Active',
-    notes: 'Weekly landscaping and grounds maintenance for research campus.',
-    maintenance: {
-      responsibleParty: 'GreenScape LLC',
-      ownerResponsibility: 'Environmental compliance',
-      reasoning: 'Maintains professional appearance and environmental standards',
-    },
-  },
-  {
-    id: '4',
-    agreementNumber: 'AGR001237',
-    name: 'Security Monitoring Agreement',
-    date: '12/05/2023',
-    location: 'All Locations',
-    status: 'Active',
-    notes: '24/7 security monitoring and response services across all properties.',
-  },
-  {
-    id: '5',
-    agreementNumber: 'AGR001238',
-    name: 'Waste Management Contract',
-    date: '04/18/2024',
-    location: 'Building C - Distribution Center',
-    status: 'Needs Review',
-    notes: 'Bi-weekly waste collection and recycling services.',
-  },
-];
-
 export function AgreementPreview() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -102,11 +45,11 @@ export function AgreementPreview() {
 
   if (!agreement) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="flex min-h-[50vh] flex-col items-center justify-center bg-gray-50 px-4">
         <div className="text-center">
-          <h2>Agreement not found</h2>
+          <h2 className="text-lg font-semibold text-gray-900">Agreement not found</h2>
           <Button onClick={() => navigate('/agreements')} className="mt-4">
-            Back to Agreements
+            Back to land details
           </Button>
         </div>
       </div>
@@ -146,44 +89,18 @@ export function AgreementPreview() {
   };
 
   return (
-    <div className="min-h-screen bg-white flex flex-col">
-      {/* Header - Match AgreementsLandingPage */}
-      <header className="bg-white border-b border-gray-200 px-6 py-3 sticky top-0 z-30">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1.5">
-              <span className="text-red-600 font-bold text-lg">LOCATION</span>
-              <span className="bg-red-600 text-white px-1.5 py-0.5 text-xs font-bold">HQ</span>
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-4">
-            <button className="text-gray-600 hover:text-gray-900">
-              <Search className="w-5 h-5" />
-            </button>
-            <button className="text-gray-600 hover:text-gray-900">
-              <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
-                <span className="text-sm">👤</span>
-              </div>
-            </button>
-          </div>
-        </div>
-      </header>
-
-      {/* Back button - below header, outside app bar - Match AgreementsLandingPage */}
-      <div className="bg-white border-b border-gray-200 px-6 py-3">
-        <div className="max-w-7xl mx-auto">
-          <button
-            onClick={() => navigate('/agreements')}
-            className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back
-          </button>
-        </div>
+    <div className="flex min-h-full flex-col bg-gray-50">
+      <div className="border-b border-gray-200 bg-white px-6 py-3">
+        <button
+          type="button"
+          onClick={() => navigate('/agreements')}
+          className="flex items-center gap-2 text-sm font-medium text-gray-700 transition-colors hover:text-gray-900"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to land details
+        </button>
       </div>
 
-      {/* Main Content - Match AgreementsLandingPage layout */}
       <div className="flex-1 bg-gray-50">
         {/* Page Header - Match landing page structure */}
         <div className="bg-white px-6 py-6 border-b border-gray-200">

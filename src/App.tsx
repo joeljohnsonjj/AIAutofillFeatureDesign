@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { AgreementForm } from './components/AgreementForm';
 import type { Document } from './components/DocumentSelector';
 import { DOCUMENTS as GENERATED_DOCUMENTS } from './generated/documents';
-import { Search, ArrowLeft } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { saveAgreement, getAgreementById, updateAgreement } from './utils/agreementStorage';
 import type { Agreement } from './components/AgreementsLandingPage';
 import { queryObligationsStream, transformObligationToSnippet } from './services/apiService';
@@ -1355,32 +1355,9 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 px-6 py-3 sticky top-0 z-50">
-        <div className="flex items-center justify-between max-w-full mx-auto">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1.5">
-              <span className="text-red-600 font-bold text-lg">LOCATION</span>
-              <span className="bg-red-600 text-white px-1.5 py-0.5 text-xs font-bold">HQ</span>
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-4">
-            <button className="text-gray-600 hover:text-gray-900">
-              <Search className="w-5 h-5" />
-            </button>
-            <button className="text-gray-600 hover:text-gray-900">
-              <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
-                <span className="text-sm">👤</span>
-              </div>
-            </button>
-          </div>
-        </div>
-      </header>
-
-      {/* Back button - below header, outside app bar */}
-      <div className="bg-white border-b border-gray-200 px-6 py-3">
+    <div className="min-h-full bg-gray-50">
+      {/* Shell already renders MainTopHeader (LOCATION HQ); back bar only */}
+      <div className="border-b border-gray-200 bg-white px-6 py-3">
         <div className="max-w-7xl mx-auto">
           <button
             onClick={handleBack}
