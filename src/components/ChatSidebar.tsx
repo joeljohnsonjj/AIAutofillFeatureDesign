@@ -24,8 +24,8 @@ import {
   CHAT_TEXT_SECONDARY,
   CHAT_USER_BUBBLE_BG,
   DEFAULT_LAND_RECORD_ID,
-  HEB_RED,
-  HEB_RED_HOVER,
+  BRAND_RED,
+  BRAND_RED_HOVER,
 } from '../constants/landRecord';
 
 const CONV_KEY_PREFIX = 'heb_chat_conversation';
@@ -457,7 +457,7 @@ export function ChatSidebar({
                 height: HEADER_H,
                 minHeight: HEADER_H,
                 maxHeight: HEADER_H,
-                backgroundColor: HEB_RED,
+                backgroundColor: BRAND_RED,
                 borderTopLeftRadius: PANEL_RADIUS,
                 borderTopRightRadius: PANEL_RADIUS,
                 paddingLeft: 10,
@@ -593,7 +593,7 @@ export function ChatSidebar({
                               : `1px solid ${CHAT_BORDER}`,
                             backgroundColor: isUser ? CHAT_USER_BUBBLE_BG : '#FFFFFF',
                             boxShadow: isUser
-                              ? '0 2px 10px rgba(238, 40, 36, 0.22)'
+                              ? '0 2px 10px rgba(196, 18, 48, 0.22)'
                               : '0 1px 4px rgba(0,0,0,0.08)',
                             color: isUser ? '#FFFFFF' : CHAT_TEXT_PRIMARY,
                             textAlign: 'left',
@@ -664,8 +664,8 @@ export function ChatSidebar({
                 <div
                   className="flex-shrink-0 border-t px-3 py-2 text-xs"
                   style={{
-                    borderColor: 'rgba(238, 40, 36, 0.25)',
-                    backgroundColor: 'rgba(238, 40, 36, 0.08)',
+                    borderColor: 'rgba(196, 18, 48, 0.25)',
+                    backgroundColor: 'rgba(196, 18, 48, 0.08)',
                     color: '#7A1816',
                   }}
                 >
@@ -699,8 +699,8 @@ export function ChatSidebar({
                     transitionDuration: '0.2s',
                   }}
                   onFocus={(e) => {
-                    e.currentTarget.style.borderColor = HEB_RED;
-                    e.currentTarget.style.boxShadow = '0 0 0 2px rgba(238, 40, 36, 0.2)';
+                    e.currentTarget.style.borderColor = BRAND_RED;
+                    e.currentTarget.style.boxShadow = '0 0 0 2px rgba(196, 18, 48, 0.2)';
                   }}
                   onBlur={(e) => {
                     e.currentTarget.style.borderColor = CHAT_BORDER;
@@ -722,7 +722,7 @@ export function ChatSidebar({
                       loading || !input.trim()
                         ? CHAT_USER_BUBBLE_BG
                         : sendHovered
-                          ? HEB_RED_HOVER
+                          ? BRAND_RED_HOVER
                           : CHAT_USER_BUBBLE_BG,
                     borderRadius: 12,
                     transition: 'background-color 0.2s ease',

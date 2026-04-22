@@ -15,6 +15,9 @@ export const HEB_RED_HOVER = '#DC2626';
  */
 export const BRAND_RED = '#C41230';
 
+/** Darker brand red for hover states on surfaces using {@link BRAND_RED}. */
+export const BRAND_RED_HOVER = '#9E0E26';
+
 /** Chat UI + launcher — single label so FAB and panel stay consistent. */
 export const CHAT_ASSISTANT_NAME = 'Facility Management Assistant';
 /** Fixed width for chat panel and bottom launcher (no width jump on open). */

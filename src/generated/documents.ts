@@ -15,14 +15,28 @@ export const DOCUMENTS: GeneratedDocument[] = [
   {
     "id": "doc-commercial-lease-agreement-buyer-triple-net-pdf",
     "name": "Commercial Lease Agreement - Buyer Triple Net.pdf",
-    "uploadDate": "2026/04/08",
+    "uploadDate": "2026/04/21",
+    "uploadedBy": "system",
+    "totalPages": 0
+  },
+  {
+    "id": "doc-commercial-triple-net-lease-3-pdf",
+    "name": "Commercial_Triple_Net_Lease 3.pdf",
+    "uploadDate": "2026/04/21",
     "uploadedBy": "system",
     "totalPages": 0
   },
   {
     "id": "doc-mtnnn-pdf",
     "name": "MTNNN.pdf",
-    "uploadDate": "2026/04/08",
+    "uploadDate": "2026/04/21",
+    "uploadedBy": "system",
+    "totalPages": 0
+  },
+  {
+    "id": "doc-commercial-lease-agreement-v2-pdf",
+    "name": "commercial_lease_agreement_V2.pdf",
+    "uploadDate": "2026/04/21",
     "uploadedBy": "system",
     "totalPages": 0
   }
@@ -35,7 +49,15 @@ export const ALL_DOCUMENTS: Array<{ id: string; name: string }> = [
     "name": "Commercial Lease Agreement - Buyer Triple Net.pdf"
   },
   {
+    "id": "doc-commercial-triple-net-lease-3-pdf",
+    "name": "Commercial_Triple_Net_Lease 3.pdf"
+  },
+  {
     "id": "doc-mtnnn-pdf",
     "name": "MTNNN.pdf"
+  },
+  {
+    "id": "doc-commercial-lease-agreement-v2-pdf",
+    "name": "commercial_lease_agreement_V2.pdf"
   }
 ];

@@ -9,6 +9,8 @@ export interface CitationItem {
 
 export interface BackendObligation {
   DutyType: string;
+  /** When set, shown as snippet "Category"; otherwise the UI falls back to {@link DutyType}. */
+  Category?: string;
   'Responsible Party': string;
   'Owner Responsibility': string[];
   Reasoning: string[];
@@ -271,6 +273,11 @@ export async function queryObligationsStream(
  * @returns Snippet object in the format expected by the frontend
  */
 export function transformObligationToSnippet(obligation: BackendObligation, index: number) {
+  const explicitCategory =
+    typeof obligation.Category === 'string' ? obligation.Category.trim() : '';
+  const dutyType = obligation.DutyType ?? '';
+  const categoryForUi = explicitCategory || dutyType;
+
   // Extract citation information (Citation is now an array)
   const firstCitation = obligation.Citation && obligation.Citation.length > 0 
     ? obligation.Citation[0] 
@@ -297,8 +304,8 @@ export function transformObligationToSnippet(obligation: BackendObligation, inde
     return `Document: ${cit.docId} | Pages: ${pages}${sections ? ` | Sections: ${sections}` : ''}`;
   }).join('\n');
   
-  // Create full text from all available information
-  const fullText = `${obligation.DutyType}\n\n${obligation['Responsible Party']}\n\nResponsibilities:\n${obligation['Owner Responsibility'].join('\n')}\n\nReasoning:\n${obligation.Reasoning.join('\n')}\n\n${citationText}`;
+  const dutyBlock = `${dutyType}\n\n${obligation['Responsible Party']}\n\nResponsibilities:\n${obligation['Owner Responsibility'].join('\n')}\n\nReasoning:\n${obligation.Reasoning.join('\n')}\n\n${citationText}`;
+  const fullText = explicitCategory ? `Category: ${explicitCategory}\n\n${dutyBlock}` : dutyBlock;
   
   // Create page references from citations
   const pageReferences = obligation.Citation.flatMap(cit => 
@@ -340,11 +347,12 @@ export function transformObligationToSnippet(obligation: BackendObligation, inde
       pageReferences: pageReferences
     },
     fieldMappings: {
+      category: categoryForUi,
       responsibleParty: obligation['Responsible Party'],
       maintenanceOwnerResponsibility: ownerResponsibility,
       maintenanceReasoning: reasoning,
     },
-    matchedFields: ['Responsible Party', 'Maintenance Owner Responsibility', 'Legal Notes'],
+    matchedFields: ['Category', 'Responsible Party', 'Maintenance Owner Responsibility', 'Legal Notes'],
     status: 'normal',
     confidenceScore: 85, // Default confidence score, can be adjusted based on relevance
     citations: obligation.Citation, // Preserve all Citation data for PDF navigation

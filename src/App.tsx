@@ -89,11 +89,12 @@ const SNIPPET_DATABASE = [
       ]
     },
     fieldMappings: {
+      category: 'Structural & building systems',
       responsibleParty: 'Property Owner',
       maintenanceOwnerResponsibility: 'Structural repairs, roof maintenance, HVAC systems',
       maintenanceReasoning: 'Per Section 3.2, owner maintains structural integrity and major building systems as defined in commercial lease standards',
     },
-    matchedFields: ['Responsible Party', 'Maintenance Owner Responsibility', 'Legal Notes'],
+    matchedFields: ['Category', 'Responsible Party', 'Maintenance Owner Responsibility', 'Legal Notes'],
     status: 'updated', // 'normal', 'updated', 'deleted'
   },
   {
@@ -141,11 +142,12 @@ const SNIPPET_DATABASE = [
       ]
     },
     fieldMappings: {
+      category: 'Lease structure (NNN)',
       responsibleParty: 'Tenant',
       maintenanceOwnerResponsibility: 'Structural integrity and major capital improvements only',
       maintenanceReasoning: 'Triple Net (NNN) lease structure per Section 2.1 allocates comprehensive operational responsibility to tenant with owner retaining structural oversight',
     },
-    matchedFields: ['Responsible Party', 'Maintenance Owner Responsibility', 'Legal Notes'],
+    matchedFields: ['Category', 'Responsible Party', 'Maintenance Owner Responsibility', 'Legal Notes'],
   },
   {
     id: '3',
@@ -174,11 +176,12 @@ const SNIPPET_DATABASE = [
       ]
     },
     fieldMappings: {
+      category: 'Shared maintenance framework',
       responsibleParty: 'Shared Responsibility',
       maintenanceOwnerResponsibility: 'Building systems, life safety equipment, and code compliance',
       maintenanceReasoning: 'Modified Gross Lease framework per Section 1.5 establishes shared maintenance obligations with owner covering major systems and tenant handling routine operations',
     },
-    matchedFields: ['Responsible Party', 'Maintenance Owner Responsibility', 'Legal Notes'],
+    matchedFields: ['Category', 'Responsible Party', 'Maintenance Owner Responsibility', 'Legal Notes'],
   },
   {
     id: '4',
@@ -207,11 +210,12 @@ const SNIPPET_DATABASE = [
       ]
     },
     fieldMappings: {
+      category: 'Full service lease',
       responsibleParty: 'Landlord',
       maintenanceOwnerResponsibility: 'Complete property maintenance including interior, exterior, and all systems',
       maintenanceReasoning: 'Full Service Lease per Section 4.1 designates landlord as responsible for comprehensive property maintenance with minimal tenant obligations',
     },
-    matchedFields: ['Responsible Party', 'Maintenance Owner Responsibility', 'Legal Notes'],
+    matchedFields: ['Category', 'Responsible Party', 'Maintenance Owner Responsibility', 'Legal Notes'],
   },
   {
     id: '6',
@@ -256,11 +260,12 @@ const SNIPPET_DATABASE = [
       ]
     },
     fieldMappings: {
+      category: 'Insurance & liability',
       responsibleParty: 'Both Parties',
       maintenanceOwnerResponsibility: 'Maintain liability insurance, verify contractor insurance compliance',
       maintenanceReasoning: 'Per Section 2.1 and cross-referenced documents, owner must maintain comprehensive liability coverage and ensure contractor compliance across all maintenance activities',
     },
-    matchedFields: ['Responsible Party', 'Maintenance Owner Responsibility', 'Legal Notes'],
+    matchedFields: ['Category', 'Responsible Party', 'Maintenance Owner Responsibility', 'Legal Notes'],
   }
 ];
 
@@ -1274,6 +1279,7 @@ export default function App() {
     
     // Apply other field mappings as ghost values if they exist
     Object.entries(snippet.fieldMappings).forEach(([fieldId, value]) => {
+      if (fieldId === 'category') return;
       if (!maintenanceFields.includes(fieldId)) {
         setGhostValues(prev => ({ ...prev, [fieldId]: value as string }));
       }

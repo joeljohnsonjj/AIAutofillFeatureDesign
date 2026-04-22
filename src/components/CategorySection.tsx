@@ -663,6 +663,16 @@ export function CategorySection({
                           }}
                         >
                           <div className="space-y-2">
+                            {currentSnippet.fieldMappings.category && (
+                              <ExpandableCard
+                                title="Category"
+                                content={currentSnippet.fieldMappings.category}
+                                maxLength={450}
+                                minHeight="30px"
+                                maxHeight="80px"
+                              />
+                            )}
+
                             {/* Responsible Party Card - No minimum height */}
                             {currentSnippet.fieldMappings.responsibleParty && (
                               <ExpandableCard

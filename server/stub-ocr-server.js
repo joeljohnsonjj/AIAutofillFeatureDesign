@@ -6,6 +6,7 @@ const PORT = 8000;
 const stubObligations = [
     {
         DutyType: 'Base Rent Payment',
+        Category: 'Rent & payments',
         'Responsible Party': 'Tenant',
         'Owner Responsibility': [
             'Pay monthly Base Rent stated in Section 1 in advance on or before the first day of each month during the Term.',
