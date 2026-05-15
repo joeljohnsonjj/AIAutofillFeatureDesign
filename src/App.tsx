@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { flushSync } from 'react-dom';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AgreementForm } from './components/AgreementForm';
 import type { Document } from './components/DocumentSelector';
@@ -1001,40 +1002,31 @@ export default function App() {
       
       const streamedSnippets: any[] = [];
       let totalObligationsFound = 0;
-      let updateTimer: NodeJS.Timeout | null = null;
-      
+
       await queryObligationsStream(
         query || '',
         documentNames.length > 0 ? documentNames : undefined,
         {
           onObligation: (obligation, index) => {
             console.log(`[DEBUG App.tsx] Received obligation ${index + 1}:`, obligation.DutyType);
-            
-            // Transform obligation to snippet format
+
             const snippet = transformObligationToSnippet(obligation, index);
-            
-            // Calculate confidence score
             const baseConfidence = 95 - (index * 5);
             const confidenceScore = Math.max(60, Math.min(100, baseConfidence));
-            
             const snippetWithConfidence = {
               ...snippet,
               confidenceScore,
             };
-            
+
             streamedSnippets.push(snippetWithConfidence);
-            
-            // Batch updates to prevent excessive re-renders
-            // Clear any pending update
-            if (updateTimer) {
-              clearTimeout(updateTimer);
-            }
-            
-            // Schedule update after a brief delay (batching)
-            updateTimer = setTimeout(() => {
+
+            // Commit each obligation immediately so the UI can render progressively.
+            // flushSync avoids React 18 batching multiple stream lines in one paint when the
+            // server sends several NDJSON rows in the same read chunk.
+            flushSync(() => {
               setSnippets([...streamedSnippets]);
-              console.log(`[DEBUG App.tsx] Batched update: ${streamedSnippets.length} snippets`);
-            }, 50); // 50ms debounce - will batch multiple rapid updates
+            });
+            console.log(`[DEBUG App.tsx] Live UI update: ${streamedSnippets.length} snippet(s)`);
           },
           onMetadata: (metadata) => {
             console.log('[DEBUG App.tsx] Received metadata:', metadata);
@@ -1051,17 +1043,12 @@ export default function App() {
           },
           onError: (errorMessage) => {
             console.error('[DEBUG App.tsx] Stream error:', errorMessage);
+            setIsAnalyzing(false);
             alert('Error during streaming: ' + errorMessage);
           },
           onComplete: () => {
             console.log('[DEBUG App.tsx] Streaming complete, total snippets:', streamedSnippets.length);
-            
-            // Clear any pending timer and do final update
-            if (updateTimer) {
-              clearTimeout(updateTimer);
-            }
-            
-            // Final update with all snippets
+
             setSnippets([...streamedSnippets]);
             setIsAnalyzing(false);
             

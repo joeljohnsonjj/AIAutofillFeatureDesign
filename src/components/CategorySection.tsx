@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Search, Check, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Check, X, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { FormField } from '../App';
 import { GhostFormField } from './GhostFormField';
 import { AIAnalyzingAnimation } from './AIAnalyzingAnimation';
@@ -84,6 +84,8 @@ interface PDFReference {
 interface Snippet {
   id: string;
   title: string;
+  /** Backend obligation category (e.g. "Maintenance & Repairs"). */
+  category?: string;
   pdfReference: PDFReference;
   fieldMappings: Record<string, string>;
   matchedFields: string[];
@@ -150,7 +152,7 @@ export function CategorySection({
   onFieldSearch,
   onToggleAiMode,
   isAnalyzing = false,
-  snippetsCount: _snippetsCount = 0,
+  snippetsCount = 0,
   snippets = [],
   onApplySnippet,
   isAIApproved = false,
@@ -572,15 +574,22 @@ export function CategorySection({
             </div>
           )}
 
-          {/* AI Snippets Section - Show when AI mode is ON and snippets exist */}
-          {aiMode && snippets.length > 0 && (
+          {/* AI Snippets Section — show while streaming (0 rows) or when rows exist */}
+          {aiMode && (snippets.length > 0 || isAnalyzing) && (
             <div className="mb-6">
               {/* Main Card Container */}
               <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
                 {/* Header Section */}
-                <div className="px-4 py-3 border-b border-gray-200 bg-white flex items-center justify-between">
-                  <div className="flex items-center gap-2">
+                <div className="px-4 py-3 border-b border-gray-200 bg-white flex items-center justify-between gap-3">
+                  <div className="flex flex-col gap-1 min-w-0">
                     <h3 className="text-sm font-semibold text-gray-900">AI interpretations from agreement</h3>
+                    {isAnalyzing && (
+                      <p className="text-xs text-gray-500">
+                        {snippets.length === 0
+                          ? 'Streaming — obligations will appear here as each row arrives.'
+                          : `${snippets.length} obligation${snippets.length === 1 ? '' : 's'} shown so far — more may still arrive.`}
+                      </p>
+                    )}
                   </div>
                   
                   {/* Navigation Controls and View Legal Evidence - Header Right */}
@@ -634,8 +643,25 @@ export function CategorySection({
                 </div>
 
                 {/* Content Section */}
-                {currentSnippet && (
+                {snippets.length === 0 && isAnalyzing ? (
+                  <div className="px-4 py-12 flex flex-col items-center justify-center gap-3 text-gray-600 border-t border-gray-100 bg-gray-50/50">
+                    <Loader2 className="w-8 h-8 animate-spin text-blue-600" aria-hidden />
+                    <p className="text-sm text-center max-w-md">
+                      Waiting for the first obligation row. Results stream in as the model finishes each category.
+                    </p>
+                  </div>
+                ) : currentSnippet ? (
                   <div className="p-4">
+                    {currentSnippet.category ? (
+                      <div className="mb-3">
+                        <span
+                          className="inline-flex items-center rounded-full bg-indigo-50 text-indigo-900 border border-indigo-100 px-3 py-1 text-xs font-semibold tracking-tight"
+                          title="Obligation category from the agreement index"
+                        >
+                          {currentSnippet.category}
+                        </span>
+                      </div>
+                    ) : null}
                     {/* Flip Card Container */}
                     <div
                       className="relative w-full"
@@ -822,7 +848,7 @@ export function CategorySection({
                       </button>
                     </div>
                   </div>
-                )}
+                ) : null}
               </div>
             </div>
           )}

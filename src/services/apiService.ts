@@ -8,6 +8,8 @@ export interface CitationItem {
 }
 
 export interface BackendObligation {
+  /** Obligation group from consolidated / stream (e.g. "Maintenance & Repairs"). */
+  category?: string;
   DutyType: string;
   'Responsible Party': string;
   'Owner Responsibility': string[];
@@ -19,15 +21,203 @@ export interface BackendQueryResponse {
   query: string;
   total_documents_searched: number;
   total_obligations_found: number;
+  total_categories?: number;
   results: BackendObligation[];
   processed_at: string;
   error?: string;
 }
 
+function asRecord(v: unknown): Record<string, unknown> | null {
+  return v !== null && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
+}
+
+/** Parse API `pageNumbers` whether string, number, or number[]. */
+export function normalizePageNumbers(value: unknown): number[] {
+  if (Array.isArray(value)) {
+    return value.map((x) => Number(x)).filter((n) => !Number.isNaN(n));
+  }
+  if (typeof value === 'number' && !Number.isNaN(value)) {
+    return [value];
+  }
+  if (typeof value === 'string') {
+    return value
+      .split(/[,;\s]+/)
+      .map((s) => parseInt(s.trim(), 10))
+      .filter((n) => !Number.isNaN(n));
+  }
+  return [];
+}
+
+/** Normalize `section` whether string or string[]. */
+export function normalizeSectionList(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.map(String).map((s) => s.trim()).filter(Boolean);
+  }
+  if (typeof value === 'string') {
+    return value
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+  return [];
+}
+
+function normalizeCitationItem(raw: unknown): CitationItem {
+  const o = asRecord(raw) ?? {};
+  const docId = String(o.docId ?? o.document_id ?? 'Unknown Document');
+  const pageNumbers = normalizePageNumbers(o.pageNumbers ?? o.page_numbers);
+  const section = normalizeSectionList(o.section ?? o.sections);
+  return { docId, pageNumbers, section };
+}
+
+function deriveDutyType(category: string | undefined, party: string, ownerLines: string[]): string {
+  const first = ownerLines.find((s) => s.trim())?.trim() ?? '';
+  if (first) {
+    const short = first.length > 140 ? `${first.slice(0, 137)}...` : first;
+    if (category?.trim()) {
+      return `${category.trim()} — ${short}`;
+    }
+    return short;
+  }
+  if (category?.trim()) return category.trim();
+  if (party.trim()) return party.trim();
+  return 'Obligation';
+}
+
+function coerceStringArray(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.map((x) => String(x)).filter((s) => s.length > 0);
+  }
+  if (value === undefined || value === null) return [];
+  return [String(value)];
+}
+
+/**
+ * Maps current backend shapes (incl. lowercase `citations`, string page/section lists, no `DutyType`)
+ * into the canonical {@link BackendObligation} used by the UI.
+ */
+export function normalizeBackendObligation(
+  raw: Record<string, unknown>,
+  options?: { category?: string }
+): BackendObligation {
+  const party = String(
+    raw['Responsible Party'] ?? raw['responsible party'] ?? raw.responsibleParty ?? ''
+  );
+  const ownerResponsibility = coerceStringArray(raw['Owner Responsibility'] ?? raw['owner responsibility']);
+  const reasoning = coerceStringArray(raw.Reasoning ?? raw.reasoning);
+
+  const citationsRaw = raw.Citation ?? raw.citations ?? raw.citation;
+  const list = Array.isArray(citationsRaw) ? citationsRaw : [];
+  const Citation: CitationItem[] = list.map(normalizeCitationItem);
+
+  const categoryFromRaw =
+    typeof raw.category === 'string' && raw.category.trim() ? raw.category.trim() : undefined;
+  const categoryLabel = categoryFromRaw ?? (options?.category?.trim() ? options.category.trim() : undefined);
+
+  const dutyRaw = raw.DutyType ?? raw.dutyType ?? raw.duty_type;
+  const DutyType =
+    typeof dutyRaw === 'string' && dutyRaw.trim()
+      ? dutyRaw.trim()
+      : deriveDutyType(categoryLabel, party, ownerResponsibility);
+
+  const base: BackendObligation = {
+    DutyType,
+    'Responsible Party': party,
+    'Owner Responsibility': ownerResponsibility.length ? ownerResponsibility : [''],
+    Reasoning: reasoning.length ? reasoning : [''],
+    Citation: Citation.length ? Citation : [normalizeCitationItem({})],
+  };
+  if (categoryLabel) {
+    base.category = categoryLabel;
+  }
+  return base;
+}
+
+/**
+ * Normalizes both legacy flat `/query` JSON and nested `results: { results: [ { category, obligations } ] }` envelopes.
+ */
+export function normalizeQueryEnvelope(data: unknown): BackendQueryResponse {
+  const root = asRecord(data) ?? {};
+  const topQuery = String(root.query ?? '');
+
+  if (typeof root.error === 'string' && root.error) {
+    return {
+      query: topQuery,
+      total_documents_searched: 0,
+      total_obligations_found: 0,
+      results: [],
+      processed_at: '',
+      error: root.error,
+    };
+  }
+
+  const inner = root.results;
+
+  // Legacy: `results` is a flat array of obligations
+  if (Array.isArray(inner)) {
+    const results = inner.map((item) => normalizeBackendObligation(asRecord(item) ?? {}));
+    return {
+      query: topQuery,
+      total_documents_searched: Number(root.total_documents_searched ?? 0),
+      total_obligations_found: Number(root.total_obligations_found ?? results.length),
+      results,
+      processed_at: String(root.processed_at ?? ''),
+    };
+  }
+
+  // New: `results` is an object with nested category groups in `results.results`
+  const nest = asRecord(inner);
+  if (nest) {
+    const nestedGroups = nest.results;
+    const flat: BackendObligation[] = [];
+    if (Array.isArray(nestedGroups)) {
+      for (const g of nestedGroups) {
+        const gr = asRecord(g);
+        if (!gr) continue;
+        const category = String(gr.category ?? '');
+        const obligations = gr.obligations;
+        if (!Array.isArray(obligations)) continue;
+        for (const ob of obligations) {
+          flat.push(normalizeBackendObligation(asRecord(ob) ?? {}, { category }));
+        }
+      }
+    }
+    return {
+      query: String(nest.query ?? topQuery),
+      total_documents_searched: Number(nest.total_documents_searched ?? 0),
+      total_obligations_found: Number(nest.total_obligations_found ?? flat.length),
+      total_categories:
+        nest.total_categories !== undefined && nest.total_categories !== null
+          ? Number(nest.total_categories)
+          : undefined,
+      results: flat,
+      processed_at: String(nest.processed_at ?? ''),
+    };
+  }
+
+  return {
+    query: topQuery,
+    total_documents_searched: 0,
+    total_obligations_found: 0,
+    results: [],
+    processed_at: '',
+  };
+}
+
 // Streaming response types (NDJSON format)
+/** Legacy: `data` is a flat obligation. Current backend: `data` is `{ category?, obligation }`. */
 export interface StreamObligationEvent {
   type: 'obligation';
-  data: BackendObligation;
+  data: BackendObligation | { category?: string; obligation: Record<string, unknown> };
+}
+
+/** Current API: merged category block with multiple obligations (raw JSON per item). */
+export interface StreamCategoryGroupEvent {
+  type: 'category_group';
+  data: {
+    category: string;
+    obligations: unknown[];
+  };
 }
 
 export interface StreamMetadataEvent {
@@ -36,6 +226,7 @@ export interface StreamMetadataEvent {
     query: string;
     total_documents_searched: number;
     total_obligations_found: number;
+    total_categories?: number;
     processed_at: string;
   };
 }
@@ -45,7 +236,49 @@ export interface StreamErrorEvent {
   message: string;
 }
 
-export type StreamEvent = StreamObligationEvent | StreamMetadataEvent | StreamErrorEvent;
+export type StreamEvent =
+  | StreamObligationEvent
+  | StreamCategoryGroupEvent
+  | StreamMetadataEvent
+  | StreamErrorEvent;
+
+/** Backend may wrap the row in `{ category, obligation }` (see stream logs). */
+export function unwrapStreamObligationPayload(data: unknown): {
+  category?: string;
+  raw: Record<string, unknown>;
+} {
+  const d = asRecord(data);
+  if (!d) return { raw: {} };
+  const inner = asRecord(d.obligation);
+  if (inner && Object.keys(inner).length > 0) {
+    const category = typeof d.category === 'string' ? d.category : undefined;
+    return { category, raw: inner };
+  }
+  return {
+    category: typeof d.category === 'string' ? d.category : undefined,
+    raw: d,
+  };
+}
+
+function fingerprintNormalizedObligation(norm: BackendObligation): string {
+  const cat = norm.category ?? '';
+  const oc = norm['Owner Responsibility'].join('\u001e');
+  const r = norm['Responsible Party'];
+  const c0 = norm.Citation[0];
+  const pages = c0?.pageNumbers?.join(',') ?? '';
+  const sec = c0?.section?.join('\u001e') ?? '';
+  return `${cat}\u001f${r}\u001f${oc}\u001f${c0?.docId ?? ''}\u001f${pages}\u001f${sec}`;
+}
+
+function yieldToBrowser(): Promise<void> {
+  return new Promise((resolve) => {
+    if (typeof requestAnimationFrame !== 'undefined') {
+      requestAnimationFrame(() => resolve());
+    } else {
+      setTimeout(resolve, 0);
+    }
+  });
+}
 
 /**
  * Query legal obligations from the backend
@@ -107,7 +340,7 @@ export async function queryObligations(query: string, documentIds?: string[]): P
     fetch('http://127.0.0.1:7242/ingest/c69e181c-4485-4aaa-8fb9-54a919c8d97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'apiService.ts:42',message:'JSON parsed successfully',data:{resultsCount:data.results?.length,totalObligations:data.total_obligations_found,query:data.query},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'})}).catch(()=>{});
     // #endregion
     
-    return data;
+    return normalizeQueryEnvelope(data);
   } catch (error) {
     // #region agent log
     console.log('[DEBUG apiService] queryObligations error caught', {error: error instanceof Error ? error.message : String(error), errorName: error?.constructor?.name});
@@ -160,9 +393,11 @@ export async function queryObligationsStream(
     
     const requestBody: {
       query: string;
-      document_ids?: string[];
+      document_ids?: string[] | null;
+      save_output?: boolean;
     } = {
       query: query || '',
+      save_output: false,
     };
     
     // Include document_ids only if provided and not empty
@@ -178,6 +413,7 @@ export async function queryObligationsStream(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        Accept: 'application/x-ndjson',
       },
       body: JSON.stringify(requestBody),
     });
@@ -200,46 +436,106 @@ export async function queryObligationsStream(
     const decoder = new TextDecoder();
     let buffer = '';
     let obligationIndex = 0;
-    
-    while (true) {
+    let streamHalted = false;
+    const seenObligationKeys = new Set<string>();
+
+    const tryEmitNormalized = async (norm: BackendObligation): Promise<void> => {
+      const party = norm['Responsible Party']?.trim() ?? '';
+      const hasOwner = norm['Owner Responsibility'].some((s) => String(s).trim());
+      if (!party && !hasOwner) return;
+
+      const key = fingerprintNormalizedObligation(norm);
+      if (seenObligationKeys.has(key)) return;
+      seenObligationKeys.add(key);
+      console.log(`[DEBUG apiService] Emitting obligation ${obligationIndex + 1}:`, norm.DutyType);
+      callbacks?.onObligation?.(norm, obligationIndex);
+      obligationIndex++;
+      await yieldToBrowser();
+    };
+
+    const handleParsedEvent = async (event: StreamEvent): Promise<boolean> => {
+      if (event.type === 'category_group') {
+        const list = event.data?.obligations;
+        if (!Array.isArray(list)) {
+          console.warn('[DEBUG apiService] category_group missing obligations array', event.data);
+          return false;
+        }
+        const category = String(event.data?.category ?? '');
+        for (const ob of list) {
+          const norm = normalizeBackendObligation(asRecord(ob) ?? {}, { category });
+          await tryEmitNormalized(norm);
+        }
+        return false;
+      }
+      if (event.type === 'obligation') {
+        const { category, raw } = unwrapStreamObligationPayload(event.data);
+        if (!raw || Object.keys(raw).length === 0) {
+          console.warn('[DEBUG apiService] obligation event missing payload', event.data);
+          return false;
+        }
+        const norm = normalizeBackendObligation(raw, { category });
+        await tryEmitNormalized(norm);
+        return false;
+      }
+      if (event.type === 'metadata') {
+        console.log('[DEBUG apiService] Received metadata:', event.data);
+        callbacks?.onMetadata?.(event.data);
+        return false;
+      }
+      if (event.type === 'error') {
+        console.error('[DEBUG apiService] Received error:', event.message);
+        callbacks?.onError?.(event.message);
+        return true;
+      }
+      return false;
+    };
+
+    const consumeLine = async (raw: string): Promise<boolean> => {
+      const line = raw.trim();
+      if (!line) return false;
+      let event: StreamEvent;
+      try {
+        event = JSON.parse(line) as StreamEvent;
+      } catch (parseError) {
+        console.error('[DEBUG apiService] Failed to parse NDJSON line:', line.slice(0, 200), parseError);
+        callbacks?.onError?.(`Invalid NDJSON line: ${line.slice(0, 120)}`);
+        return true;
+      }
+      return handleParsedEvent(event);
+    };
+
+    while (!streamHalted) {
       const { done, value } = await reader.read();
-      
+
       if (done) {
-        console.log('[DEBUG apiService] Stream complete');
-        callbacks?.onComplete?.();
+        buffer += decoder.decode(undefined, { stream: false });
+        if (buffer.trim()) {
+          streamHalted = await consumeLine(buffer);
+        }
+        if (!streamHalted) {
+          console.log('[DEBUG apiService] Stream complete');
+          callbacks?.onComplete?.();
+        }
         break;
       }
-      
-      // Decode the chunk and add to buffer
+
       buffer += decoder.decode(value, { stream: true });
-      
-      // Process complete lines (NDJSON format: one JSON object per line)
+
       const lines = buffer.split('\n');
-      buffer = lines.pop() || ''; // Keep the incomplete line in the buffer
-      
+      buffer = lines.pop() || '';
+
       for (const line of lines) {
-        if (!line.trim()) continue; // Skip empty lines
-        
-        try {
-          const event: StreamEvent = JSON.parse(line);
-          
-          if (event.type === 'obligation') {
-            console.log(`[DEBUG apiService] Received obligation ${obligationIndex + 1}:`, event.data.DutyType);
-            callbacks?.onObligation?.(event.data, obligationIndex);
-            obligationIndex++;
-          } else if (event.type === 'metadata') {
-            console.log('[DEBUG apiService] Received metadata:', event.data);
-            callbacks?.onMetadata?.(event.data);
-          } else if (event.type === 'error') {
-            console.error('[DEBUG apiService] Received error:', event.message);
-            callbacks?.onError?.(event.message);
-          }
-        } catch (parseError) {
-          console.error('[DEBUG apiService] Failed to parse NDJSON line:', line, parseError);
+        streamHalted = await consumeLine(line);
+        if (streamHalted) {
+          await reader.cancel().catch(() => undefined);
+          break;
         }
       }
+      if (streamHalted) {
+        break;
+      }
     }
-    
+
   } catch (error) {
     console.error('[DEBUG apiService] queryObligationsStream error caught', {error: error instanceof Error ? error.message : String(error)});
     
@@ -271,15 +567,15 @@ export async function queryObligationsStream(
  * @returns Snippet object in the format expected by the frontend
  */
 export function transformObligationToSnippet(obligation: BackendObligation, index: number) {
+  const citations = Array.isArray(obligation.Citation) ? obligation.Citation : [];
   // Extract citation information (Citation is now an array)
-  const firstCitation = obligation.Citation && obligation.Citation.length > 0 
-    ? obligation.Citation[0] 
-    : null;
-  
+  const firstCitation = citations.length > 0 ? citations[0] : null;
+
   const documentName = firstCitation?.docId || 'Unknown Document';
-  const pageNumber = firstCitation?.pageNumbers && firstCitation.pageNumbers.length > 0
-    ? firstCitation.pageNumbers[0]
-    : 1;
+  const pageNumber =
+    firstCitation?.pageNumbers && firstCitation.pageNumbers.length > 0
+      ? firstCitation.pageNumbers[0]
+      : 1;
   
   // Generate document ID from document name
   const documentId = `doc-${documentName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
@@ -291,21 +587,23 @@ export function transformObligationToSnippet(obligation: BackendObligation, inde
   const reasoning = obligation.Reasoning.join('; ');
   
   // Build citation text from all citations
-  const citationText = obligation.Citation.map(cit => {
-    const pages = cit.pageNumbers.join(', ');
-    const sections = cit.section.join(', ');
-    return `Document: ${cit.docId} | Pages: ${pages}${sections ? ` | Sections: ${sections}` : ''}`;
-  }).join('\n');
-  
-  // Create full text from all available information
-  const fullText = `${obligation.DutyType}\n\n${obligation['Responsible Party']}\n\nResponsibilities:\n${obligation['Owner Responsibility'].join('\n')}\n\nReasoning:\n${obligation.Reasoning.join('\n')}\n\n${citationText}`;
-  
+  const citationText = citations
+    .map((cit) => {
+      const pages = cit.pageNumbers.length ? cit.pageNumbers.join(', ') : '';
+      const sections = cit.section.length ? cit.section.join(', ') : '';
+      return `Document: ${cit.docId} | Pages: ${pages}${sections ? ` | Sections: ${sections}` : ''}`;
+    })
+    .join('\n');
+
+  const categoryLine = obligation.category ? `Category: ${obligation.category}\n\n` : '';
+  const fullText = `${categoryLine}${obligation.DutyType}\n\n${obligation['Responsible Party']}\n\nResponsibilities:\n${obligation['Owner Responsibility'].join('\n')}\n\nReasoning:\n${obligation.Reasoning.join('\n')}\n\n${citationText}`;
+
   // Create page references from citations
-  const pageReferences = obligation.Citation.flatMap(cit => 
-    cit.pageNumbers.map(pageNum => ({
+  const pageReferences = citations.flatMap((cit) =>
+    (cit.pageNumbers.length ? cit.pageNumbers : [1]).map((pageNum) => ({
       page: pageNum,
       fullText: `Page ${pageNum}${cit.section.length > 0 ? ` - ${cit.section.join(', ')}` : ''}`,
-      highlights: []
+      highlights: [],
     }))
   );
   
@@ -332,6 +630,7 @@ export function transformObligationToSnippet(obligation: BackendObligation, inde
     id: `backend-${index}`,
     documentId: documentId,
     title: obligation.DutyType,
+    ...(obligation.category ? { category: obligation.category } : {}),
     pdfReference: {
       page: pageNumber,
       segment: obligation['Responsible Party'],
@@ -347,7 +646,7 @@ export function transformObligationToSnippet(obligation: BackendObligation, inde
     matchedFields: ['Responsible Party', 'Maintenance Owner Responsibility', 'Legal Notes'],
     status: 'normal',
     confidenceScore: 85, // Default confidence score, can be adjusted based on relevance
-    citations: obligation.Citation, // Preserve all Citation data for PDF navigation
+    citations, // Preserve all Citation data for PDF navigation
   };
 }
 

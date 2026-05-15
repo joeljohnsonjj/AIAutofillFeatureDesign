@@ -113,7 +113,6 @@ export function CitationPdfModal({
                 documentName={documentName}
                 pageNumbers={pages}
                 hidePageNavigation={pages.length <= 1}
-                controlledPageIndex={0}
                 layout="modal"
                 containerHeight="min(70vh, calc(92vh - 6rem))"
                 className="flex min-h-0 w-full min-w-0 max-w-full flex-1 flex-col"

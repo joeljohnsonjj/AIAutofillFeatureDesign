@@ -120,6 +120,65 @@ export function parseCitationForPdf(raw: string): { documentName: string; pageNu
   };
 }
 
+function normalizeDocName(name: string): string {
+  return name.replace(/\.pdf$/i, '').trim().toLowerCase();
+}
+
+/**
+ * Merge all citation lines for one responsibility into one PDF open:
+ * one document (first non-unknown, or first line) and a sorted unique page list.
+ * Citations without a document name are treated as the same document as the anchor.
+ */
+export function aggregateCitationsForPdf(cites: string[]): { documentName: string; pageNumbers: number[] } {
+  if (!cites.length) {
+    return { documentName: '', pageNumbers: [1] };
+  }
+  const parsed = cites.map((raw) => parseCitationForPdf(raw.trim()));
+  const anchor =
+    parsed.find((p) => p.documentName && p.documentName !== 'Unknown') ?? parsed[0];
+  const anchorKey = normalizeDocName(anchor.documentName === 'Unknown' ? '' : anchor.documentName);
+  const pages: number[] = [];
+  for (const p of parsed) {
+    const key = normalizeDocName(p.documentName === 'Unknown' ? '' : p.documentName);
+    if (p.documentName === 'Unknown' || !key || key === anchorKey) {
+      pages.push(...p.pageNumbers);
+    }
+  }
+  const uniq = [...new Set(pages)].sort((a, b) => a - b);
+  return {
+    documentName: anchor.documentName,
+    pageNumbers: uniq.length ? uniq : [1],
+  };
+}
+
+/** Same path rules as {@link PDFViewer}: `public/docs` → `/docs/{name}.pdf`. */
+export function buildPublicDocPdfUrl(documentName: string, firstPage?: number): string {
+  if (!documentName || documentName === 'Unknown') {
+    return '';
+  }
+  let cleanName = documentName.trim();
+  while (cleanName.toLowerCase().endsWith('.pdf')) {
+    cleanName = cleanName.slice(0, -4);
+  }
+  const fileName = `${cleanName}.pdf`;
+  const path = `/docs/${encodeURIComponent(fileName)}`;
+  if (firstPage !== undefined && firstPage > 0) {
+    return `${path}#page=${firstPage}`;
+  }
+  return path;
+}
+
+/** Opens the PDF for one citation line in a new browser tab (native viewer; `#page=` when supported). */
+export function openCitationSourceInNewTab(rawCitation: string): void {
+  const { documentName, pageNumbers } = parseCitationForPdf(rawCitation.trim());
+  const first = pageNumbers[0] ?? 1;
+  const url = buildPublicDocPdfUrl(documentName, first);
+  if (!url) {
+    return;
+  }
+  window.open(url, '_blank', 'noopener,noreferrer');
+}
+
 export type SourcePanelItem = {
   id: string;
   /** Short label (e.g. PDF modal title) */
@@ -227,7 +286,33 @@ export function citationsToPanelItems(
 }
 
 /**
- * Parse full assistant message for inline citation chips + optional global sources.
+ * Remove trailing assistant lines that only state how many sources were used (no citation text).
+ * Examples: "Total sources: 3", "**Sources (2)**", "3 sources"
+ */
+export function stripTrailingSourceCountLines(text: string): string {
+  const lines = text.split('\n');
+  const isCountLine = (line: string) => {
+    const t = line.replace(/\*+/g, '').trim();
+    if (!t) return false;
+    return (
+      /^(?:total\s+)?(?:number\s+of\s+)?sources?\s*[:.]?\s*\d+\s*\.?$/i.test(t) ||
+      /^sources?\s*\(\s*\d+\s*\)\s*\.?$/i.test(t) ||
+      /^\d+\s+sources?\s*\.?$/i.test(t) ||
+      /^total\s+sources?\s*:/i.test(t)
+    );
+  };
+  while (lines.length && isCountLine(lines[lines.length - 1]!)) {
+    lines.pop();
+  }
+  while (lines.length && !lines[lines.length - 1]!.trim()) {
+    lines.pop();
+  }
+  return lines.join('\n');
+}
+
+/**
+ * Parse full assistant message into blocks with optional per-block citations,
+ * plus a trailing "Citations:" tail split into `globalCitations` (often duplicates block cites).
  */
 export function parseAssistantForCitations(content: string): ParsedAssistantStructure {
   const { main, global } = splitGlobalCitationTail(content);

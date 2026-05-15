@@ -8,9 +8,6 @@ import {
 import { ChevronDown, ChevronUp, RotateCcw, Send } from 'lucide-react';
 import { chatQueryStream, chatReset } from '../services/apiService';
 import { AssistantBubbleContent } from './chat/AssistantBubbleContent';
-import { CitationSidePanel, type CitationPanelState } from './chat/CitationSidePanel';
-import { CitationPdfModal } from './chat/CitationPdfModal';
-import { parseCitationForPdf } from './chat/citationParse';
 import { formatMessageBody } from './chat/chatFormatting';
 import {
   CHAT_ASSISTANT_NAME,
@@ -140,12 +137,6 @@ export function ChatSidebar({
   const [error, setError] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(false);
   const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
-  const [citationPanel, setCitationPanel] = useState<CitationPanelState>(null);
-  const [pdfCitation, setPdfCitation] = useState<{
-    documentName: string;
-    pageNumbers: number[];
-    citationTitle: string;
-  } | null>(null);
   const [sessionIds, setSessionIds] = useState<ChatSessionIds | null>(null);
   const [panelSize, setPanelSize] = useState(() => ({
     w: CHAT_PANEL_WIDTH,
@@ -166,12 +157,6 @@ export function ChatSidebar({
   const listRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const prevLandRef = useRef(landRecordId);
-  const citationPanelOpenRef = useRef(false);
-  const pdfModalOpenRef = useRef(false);
-
-  useEffect(() => {
-    citationPanelOpenRef.current = Boolean(citationPanel?.items?.length);
-  }, [citationPanel]);
 
   useEffect(() => {
     if (open) {
@@ -215,9 +200,6 @@ export function ChatSidebar({
     setInput('');
     setError(null);
     setCollapsed(false);
-    setCitationPanel(null);
-    pdfModalOpenRef.current = false;
-    setPdfCitation(null);
   }, [landRecordId]);
 
   useEffect(() => {
@@ -282,13 +264,6 @@ export function ChatSidebar({
     if (!renderOverlay) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
-      if (pdfModalOpenRef.current) {
-        return;
-      }
-      if (citationPanelOpenRef.current) {
-        setCitationPanel(null);
-        return;
-      }
       onClose();
     };
     window.addEventListener('keydown', onKey);
@@ -309,9 +284,6 @@ export function ChatSidebar({
       setSessionIds({ userId: next.user_id, runId: next.run_id });
       setInput('');
       setStreamingMessageId(null);
-      setCitationPanel(null);
-      pdfModalOpenRef.current = false;
-      setPdfCitation(null);
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Reset failed';
       setError(msg);
@@ -324,9 +296,6 @@ export function ChatSidebar({
 
     setInput('');
     setError(null);
-    setCitationPanel(null);
-    pdfModalOpenRef.current = false;
-    setPdfCitation(null);
 
     const stamp = Date.now();
     const userId = `user-${stamp}-${Math.random().toString(16).slice(2)}`;
@@ -650,7 +619,6 @@ export function ChatSidebar({
                               content={m.content}
                               messageKey={`m-${m.id}`}
                               isStreaming={isStreaming}
-                              onOpenSources={setCitationPanel}
                             />
                           )}
                         </div>
@@ -706,19 +674,6 @@ export function ChatSidebar({
                   <div ref={bottomRef} className="h-px w-full flex-shrink-0" aria-hidden />
                 </div>
               </div>
-              <CitationSidePanel
-                state={citationPanel}
-                onClose={() => setCitationPanel(null)}
-                onCitationClick={(item) => {
-                  const { documentName, pageNumbers } = parseCitationForPdf(item.raw);
-                  pdfModalOpenRef.current = true;
-                  setPdfCitation({
-                    documentName,
-                    pageNumbers,
-                    citationTitle: item.title,
-                  });
-                }}
-              />
               </div>
 
               {error && (
@@ -917,18 +872,6 @@ export function ChatSidebar({
         </div>
       </div>
     </div>
-    <CitationPdfModal
-      open={pdfCitation !== null}
-      onOpenChange={(next) => {
-        if (!next) {
-          pdfModalOpenRef.current = false;
-          setPdfCitation(null);
-        }
-      }}
-      documentName={pdfCitation?.documentName ?? ''}
-      pageNumbers={pdfCitation?.pageNumbers ?? [1]}
-      citationTitle={pdfCitation?.citationTitle ?? ''}
-    />
     </>
   );
 }
