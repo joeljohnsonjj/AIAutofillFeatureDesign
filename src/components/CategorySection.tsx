@@ -503,8 +503,11 @@ export function CategorySection({
             </div>
           )}
 
-          {/* 2. Search bar + AI Search button - Full width row, no heading */}
-          <div className="flex items-center gap-2 w-full mb-1" style={{marginTop:'20px',marginBottom:'20px'}}>
+          {/* 2. Search bar + AI Search button + analyzing indicator */}
+          <div
+            className="flex flex-wrap items-center gap-2 w-full mb-1"
+            style={{ marginTop: '20px', marginBottom: '20px' }}
+          >
             <div className="relative flex-1 min-w-0">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <Input
@@ -517,7 +520,7 @@ export function CategorySection({
                   setShowSearchRequiredWarning(false);
                 }}
                 onKeyDown={handleSearchKeyDown}
-                style={{paddingLeft:'33px'}}
+                style={{ paddingLeft: '33px' }}
               />
             </div>
             {onToggleAiMode && (
@@ -546,11 +549,20 @@ export function CategorySection({
                     : 'bg-gray-300 text-gray-700 hover:bg-gray-400'
                 }`}
                 title={checkedDocuments.length === 0 ? 'Please select at least one document' : 'Enter search text and click to search'}
-                style={{position:'relative', borderRadius:'60px'}}
+                style={{ position: 'relative', borderRadius: '60px' }}
               >
                 <Search className="w-4 h-4" />
                 AI Search
               </button>
+            )}
+            {isAnalyzing && (
+              <div
+                className="inline-flex min-h-[40px] flex-shrink-0 items-center gap-2 rounded-lg border border-red-100 bg-red-50/80 px-3 py-1.5 animate-in fade-in duration-300"
+                aria-live="polite"
+                aria-busy="true"
+              >
+                <AIAnalyzingAnimation size="sm" message="Fetching obligations…" />
+              </div>
             )}
           </div>
 
@@ -904,17 +916,7 @@ export function CategorySection({
       <div className="px-6 py-6">
         {/* Category Header - For maintenance, only show heading (document table, search bar are in form fields below) */}
         <div className="mb-4">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-gray-900 font-bold text-xl">{title}</h2>
-            <div className="flex items-center gap-3">
-              {/* AI Analyzing Animation - Show in maintenance section when analyzing */}
-              {category === 'maintenance' && aiMode && isAnalyzing && (
-                <div className="animate-in fade-in slide-in-from-right duration-300">
-                  <AIAnalyzingAnimation size="sm" message="" />
-                </div>
-              )}
-            </div>
-          </div>
+          <h2 className="text-gray-900 font-bold text-xl">{title}</h2>
         </div>
 
         {/* Form Fields */}

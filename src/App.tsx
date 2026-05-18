@@ -992,6 +992,9 @@ export default function App() {
     // #endregion
     
     try {
+      const searchUiT0 = performance.now();
+      let lastUiCommitAt: number | null = null;
+
       // Call backend API with streaming to get obligations progressively
       // API should be called even if query is empty (per requirements)
       console.log('[DEBUG App.tsx] About to call queryObligationsStream', {
@@ -1008,7 +1011,14 @@ export default function App() {
         documentNames.length > 0 ? documentNames : undefined,
         {
           onObligation: (obligation, index) => {
-            console.log(`[DEBUG App.tsx] Received obligation ${index + 1}:`, obligation.DutyType);
+            const tBefore = performance.now();
+            console.log('[query/stream UI] onObligation:beforeTransform', {
+              index,
+              msSinceSearchClick: Math.round(tBefore - searchUiT0),
+              msSincePrevUiCommit:
+                lastUiCommitAt != null ? Math.round(tBefore - lastUiCommitAt) : null,
+              dutyTypePreview: (obligation.DutyType ?? '').slice(0, 80),
+            });
 
             const snippet = transformObligationToSnippet(obligation, index);
             const baseConfidence = 95 - (index * 5);
@@ -1020,16 +1030,26 @@ export default function App() {
 
             streamedSnippets.push(snippetWithConfidence);
 
-            // Commit each obligation immediately so the UI can render progressively.
-            // flushSync avoids React 18 batching multiple stream lines in one paint when the
-            // server sends several NDJSON rows in the same read chunk.
+            const tBeforeFlush = performance.now();
             flushSync(() => {
               setSnippets([...streamedSnippets]);
             });
-            console.log(`[DEBUG App.tsx] Live UI update: ${streamedSnippets.length} snippet(s)`);
+            const tAfterFlush = performance.now();
+            lastUiCommitAt = tAfterFlush;
+            console.log('[query/stream UI] onObligation:afterFlushSync', {
+              index,
+              snippetCount: streamedSnippets.length,
+              msSinceSearchClick: Math.round(tAfterFlush - searchUiT0),
+              transformAndPushMs: Math.round(tBeforeFlush - tBefore),
+              flushSyncMs: Math.round(tAfterFlush - tBeforeFlush),
+              totalHandlerMs: Math.round(tAfterFlush - tBefore),
+            });
           },
           onMetadata: (metadata) => {
-            console.log('[DEBUG App.tsx] Received metadata:', metadata);
+            console.log('[query/stream UI] onMetadata', {
+              msSinceSearchClick: Math.round(performance.now() - searchUiT0),
+              metadata,
+            });
             totalObligationsFound = metadata.total_obligations_found;
             
             // #region agent log
@@ -1047,7 +1067,11 @@ export default function App() {
             alert('Error during streaming: ' + errorMessage);
           },
           onComplete: () => {
-            console.log('[DEBUG App.tsx] Streaming complete, total snippets:', streamedSnippets.length);
+            const doneAt = performance.now();
+            console.log('[query/stream UI] onComplete', {
+              totalSnippets: streamedSnippets.length,
+              msSinceSearchClick: Math.round(doneAt - searchUiT0),
+            });
 
             setSnippets([...streamedSnippets]);
             setIsAnalyzing(false);

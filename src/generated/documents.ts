@@ -15,14 +15,14 @@ export const DOCUMENTS: GeneratedDocument[] = [
   {
     "id": "doc-commercial-triple-net-lease-4-pdf",
     "name": "Commercial_Triple_Net_Lease 4.pdf",
-    "uploadDate": "2026/05/15",
+    "uploadDate": "2026/05/18",
     "uploadedBy": "system",
     "totalPages": 0
   },
   {
     "id": "doc-mtnnn-pdf",
     "name": "MTNNN.pdf",
-    "uploadDate": "2026/05/15",
+    "uploadDate": "2026/05/18",
     "uploadedBy": "system",
     "totalPages": 0
   }

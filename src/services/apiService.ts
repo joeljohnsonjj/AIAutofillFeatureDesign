@@ -388,9 +388,22 @@ export async function queryObligationsStream(
     onComplete?: () => void;
   }
 ): Promise<void> {
+  const streamT0 = performance.now();
+  let lastReadAt = streamT0;
+  let lastObligationEmitAt: number | null = null;
+  let readCount = 0;
+  let totalChunkBytes = 0;
+  let ndjsonLineCount = 0;
+
+  const dbg = (step: string, detail?: Record<string, unknown>) => {
+    const t = performance.now();
+    console.log(`[query/stream] ${step}`, {
+      msSinceStreamStart: Math.round(t - streamT0),
+      ...detail,
+    });
+  };
+
   try {
-    console.log('[DEBUG apiService] queryObligationsStream called', {query, documentIds, apiBaseUrl: API_BASE_URL});
-    
     const requestBody: {
       query: string;
       document_ids?: string[] | null;
@@ -399,16 +412,16 @@ export async function queryObligationsStream(
       query: query || '',
       save_output: false,
     };
-    
+
     // Include document_ids only if provided and not empty
     if (documentIds && documentIds.length > 0) {
       requestBody.document_ids = documentIds;
     }
-    
+
+    dbg('fetch:start', { url: `${API_BASE_URL}/query/stream`, body: requestBody });
+
     const url = `${API_BASE_URL}/query/stream`;
-    
-    console.log('[DEBUG apiService] Making streaming POST request', {url, body: requestBody});
-    
+
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -417,8 +430,13 @@ export async function queryObligationsStream(
       },
       body: JSON.stringify(requestBody),
     });
-    
-    console.log('[DEBUG apiService] Streaming response received', {status: response.status, ok: response.ok});
+
+    dbg('fetch:responseHeaders', {
+      status: response.status,
+      ok: response.ok,
+      msToHeaders: Math.round(performance.now() - streamT0),
+      contentType: response.headers.get('Content-Type') ?? '(none)',
+    });
     
     if (!response.ok) {
       const isServiceDown = response.status === 503 || response.status === 502 || response.status === 504;
@@ -445,21 +463,46 @@ export async function queryObligationsStream(
       if (!party && !hasOwner) return;
 
       const key = fingerprintNormalizedObligation(norm);
-      if (seenObligationKeys.has(key)) return;
+      if (seenObligationKeys.has(key)) {
+        dbg('emit:skippedDuplicate', { fingerprint: key.slice(0, 80) });
+        return;
+      }
       seenObligationKeys.add(key);
-      console.log(`[DEBUG apiService] Emitting obligation ${obligationIndex + 1}:`, norm.DutyType);
+      const emitNow = performance.now();
+      dbg('emit:obligation', {
+        uiIndex: obligationIndex,
+        dutyTypePreview: (norm.DutyType ?? '').slice(0, 100),
+        category: norm.category ?? '',
+        msSinceStreamStart: Math.round(emitNow - streamT0),
+        msSincePrevObligationEmit:
+          lastObligationEmitAt != null ? Math.round(emitNow - lastObligationEmitAt) : null,
+      });
+      lastObligationEmitAt = emitNow;
       callbacks?.onObligation?.(norm, obligationIndex);
       obligationIndex++;
+      const afterCb = performance.now();
+      dbg('emit:afterOnObligationCallback', {
+        uiIndex: obligationIndex - 1,
+        onObligationMs: Math.round(afterCb - emitNow),
+      });
       await yieldToBrowser();
+      dbg('emit:afterYieldToBrowser', {
+        uiIndex: obligationIndex - 1,
+        yieldMs: Math.round(performance.now() - afterCb),
+      });
     };
 
     const handleParsedEvent = async (event: StreamEvent): Promise<boolean> => {
       if (event.type === 'category_group') {
         const list = event.data?.obligations;
         if (!Array.isArray(list)) {
-          console.warn('[DEBUG apiService] category_group missing obligations array', event.data);
+          console.warn('[query/stream] category_group missing obligations array', event.data);
           return false;
         }
+        dbg('event:category_group', {
+          category: String(event.data?.category ?? ''),
+          obligationCount: list.length,
+        });
         const category = String(event.data?.category ?? '');
         for (const ob of list) {
           const norm = normalizeBackendObligation(asRecord(ob) ?? {}, { category });
@@ -468,9 +511,12 @@ export async function queryObligationsStream(
         return false;
       }
       if (event.type === 'obligation') {
+        dbg('event:obligation_line', {
+          category: (event.data as { category?: string })?.category,
+        });
         const { category, raw } = unwrapStreamObligationPayload(event.data);
         if (!raw || Object.keys(raw).length === 0) {
-          console.warn('[DEBUG apiService] obligation event missing payload', event.data);
+          console.warn('[query/stream] obligation event missing payload', event.data);
           return false;
         }
         const norm = normalizeBackendObligation(raw, { category });
@@ -478,12 +524,12 @@ export async function queryObligationsStream(
         return false;
       }
       if (event.type === 'metadata') {
-        console.log('[DEBUG apiService] Received metadata:', event.data);
+        dbg('event:metadata', { data: event.data });
         callbacks?.onMetadata?.(event.data);
         return false;
       }
       if (event.type === 'error') {
-        console.error('[DEBUG apiService] Received error:', event.message);
+        dbg('event:error', { message: event.message });
         callbacks?.onError?.(event.message);
         return true;
       }
@@ -493,31 +539,65 @@ export async function queryObligationsStream(
     const consumeLine = async (raw: string): Promise<boolean> => {
       const line = raw.trim();
       if (!line) return false;
+      ndjsonLineCount++;
       let event: StreamEvent;
       try {
         event = JSON.parse(line) as StreamEvent;
       } catch (parseError) {
-        console.error('[DEBUG apiService] Failed to parse NDJSON line:', line.slice(0, 200), parseError);
+        console.error('[query/stream] NDJSON parse error', {
+          linePreview: line.slice(0, 200),
+          parseError,
+        });
         callbacks?.onError?.(`Invalid NDJSON line: ${line.slice(0, 120)}`);
         return true;
       }
+      dbg('ndjson:parsed', {
+        lineIndex: ndjsonLineCount,
+        type: (event as StreamEvent).type,
+        lineChars: line.length,
+        preview: line.length > 160 ? `${line.slice(0, 160)}…` : line,
+      });
       return handleParsedEvent(event);
     };
 
     while (!streamHalted) {
       const { done, value } = await reader.read();
+      const chunkAt = performance.now();
 
       if (done) {
+        dbg('read:done', {
+          readCount,
+          totalChunkBytes,
+          ndjsonLineCount,
+          msSinceStreamStart: Math.round(chunkAt - streamT0),
+        });
         buffer += decoder.decode(undefined, { stream: false });
         if (buffer.trim()) {
           streamHalted = await consumeLine(buffer);
         }
         if (!streamHalted) {
-          console.log('[DEBUG apiService] Stream complete');
+          dbg('stream:complete', {
+            totalMs: Math.round(performance.now() - streamT0),
+            readCount,
+            totalChunkBytes,
+            ndjsonLineCount,
+            obligationsEmitted: obligationIndex,
+          });
           callbacks?.onComplete?.();
         }
         break;
       }
+
+      readCount++;
+      const byteLen = value?.byteLength ?? 0;
+      totalChunkBytes += byteLen;
+      dbg('read:chunk', {
+        readCount,
+        byteLength: byteLen,
+        msSinceStreamStart: Math.round(chunkAt - streamT0),
+        msSincePrevRead: Math.round(chunkAt - lastReadAt),
+      });
+      lastReadAt = chunkAt;
 
       buffer += decoder.decode(value, { stream: true });
 
@@ -537,7 +617,10 @@ export async function queryObligationsStream(
     }
 
   } catch (error) {
-    console.error('[DEBUG apiService] queryObligationsStream error caught', {error: error instanceof Error ? error.message : String(error)});
+    console.error('[query/stream] error', {
+      message: error instanceof Error ? error.message : String(error),
+      msSinceStreamStart: Math.round(performance.now() - streamT0),
+    });
     
     // Check if it's a connection error
     const isConnectionError = 
