@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from 'react';
 import { Search, Check, X, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { FormField } from '../App';
 import { GhostFormField } from './GhostFormField';
-import { AIAnalyzingAnimation } from './AIAnalyzingAnimation';
 import { Input } from './ui/input';
 import { CitationItem } from '../services/apiService';
 import { PDFViewer } from './PDFViewer';
@@ -119,6 +118,10 @@ interface CategorySectionProps {
   hasAIGeneratedFields?: Record<string, boolean>;
   globalSearchQuery?: string;
   onGlobalSearch?: (query: string) => void;
+  /** After global AI Search returned zero obligations — show empty state instead of hiding the card. */
+  aiSearchHadNoResults?: boolean;
+  /** Short tail of readable stream lines (terminal-style) while raw query bytes arrive. */
+  queryStreamProgressLog?: string;
   checkedDocuments?: string[];
   documents?: Document[];
   onDocumentCheckChange?: (documentId: string, checked: boolean) => void;
@@ -159,6 +162,8 @@ export function CategorySection({
   hasAIGeneratedFields = {},
   globalSearchQuery = '',
   onGlobalSearch,
+  aiSearchHadNoResults = false,
+  queryStreamProgressLog: _queryStreamProgressLog = '',
   checkedDocuments = [],
   documents = [],
   onDocumentCheckChange,
@@ -171,21 +176,23 @@ export function CategorySection({
   const [flippedSnippetId, setFlippedSnippetId] = useState<string | null>(null);
   const [pdfPageIndex, setPdfPageIndex] = useState(0);
 
-  // Reset snippet index when snippets change - clamp to valid bounds
+  // While the model streams, follow the newest obligation row; when idle, clamp index to bounds.
   useEffect(() => {
-    if (snippets.length > 0) {
-      // If current index is out of bounds, reset to last valid index
-      setCurrentSnippetIndex((prevIndex) => {
-        if (prevIndex >= snippets.length) {
-          return snippets.length - 1;
-        }
-        return prevIndex;
-      });
-    } else {
-      // No snippets - reset to 0
+    if (snippets.length === 0) {
       setCurrentSnippetIndex(0);
+      return;
     }
-  }, [snippets.length]);
+    if (isAnalyzing) {
+      setCurrentSnippetIndex(snippets.length - 1);
+      return;
+    }
+    setCurrentSnippetIndex((prevIndex) => {
+      if (prevIndex >= snippets.length) {
+        return snippets.length - 1;
+      }
+      return prevIndex;
+    });
+  }, [snippets.length, isAnalyzing]);
 
   // Reset PDF page index when switching snippets or flipping view
   useEffect(() => {
@@ -205,17 +212,13 @@ export function CategorySection({
 
   // Handle search execution
   const handleSearch = () => {
-    console.log('[DEBUG CategorySection] handleSearch called', { 
-      onGlobalSearch: !!onGlobalSearch, 
-      localSearchQuery,
-      checkedDocuments: checkedDocuments.length 
-    });
+    // #region UI debug logging (disabled)
+    // console.log('[DEBUG CategorySection] handleSearch called', { ... });
+    // #endregion
     if (onGlobalSearch) {
-      // Always call onGlobalSearch, even if query is empty (per requirements)
-      console.log('[DEBUG CategorySection] Calling onGlobalSearch with query:', localSearchQuery || '');
       onGlobalSearch(localSearchQuery || '');
     } else {
-      console.warn('[DEBUG CategorySection] onGlobalSearch is not defined!');
+      console.warn('[CategorySection] onGlobalSearch is not defined');
     }
   };
 
@@ -503,7 +506,7 @@ export function CategorySection({
             </div>
           )}
 
-          {/* 2. Search bar + AI Search button + analyzing indicator */}
+          {/* 2. Search bar + AI Search button */}
           <div
             className="flex flex-wrap items-center gap-2 w-full mb-1"
             style={{ marginTop: '20px', marginBottom: '20px' }}
@@ -555,15 +558,6 @@ export function CategorySection({
                 AI Search
               </button>
             )}
-            {isAnalyzing && (
-              <div
-                className="inline-flex min-h-[40px] flex-shrink-0 items-center gap-2 rounded-lg border border-red-100 bg-red-50/80 px-3 py-1.5 animate-in fade-in duration-300"
-                aria-live="polite"
-                aria-busy="true"
-              >
-                <AIAnalyzingAnimation size="sm" message="Fetching obligations…" />
-              </div>
-            )}
           </div>
 
           {/* Required field warning - show when AI Search clicked with empty search */}
@@ -586,11 +580,16 @@ export function CategorySection({
             </div>
           )}
 
-          {/* AI Snippets Section — show while streaming (0 rows) or when rows exist */}
-          {aiMode && (snippets.length > 0 || isAnalyzing) && (
+          {/* AI Snippets Section — show while loading, when rows exist, or when search returned no obligations */}
+          {aiMode && (snippets.length > 0 || isAnalyzing || aiSearchHadNoResults) && (
             <div className="mb-6">
-              {/* Main Card Container */}
-              <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+              {/* Main Card Container — loading overlay only until first obligation streams in */}
+              <div className="relative bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+                <div
+                  className={`transition-opacity duration-200 ${
+                    isAnalyzing && snippets.length === 0 ? 'opacity-50' : 'opacity-100'
+                  }`}
+                >
                 {/* Header Section */}
                 <div className="px-4 py-3 border-b border-gray-200 bg-white flex items-center justify-between gap-3">
                   <div className="flex flex-col gap-1 min-w-0">
@@ -598,14 +597,24 @@ export function CategorySection({
                     {isAnalyzing && (
                       <p className="text-xs text-gray-500">
                         {snippets.length === 0
-                          ? 'Streaming — obligations will appear here as each row arrives.'
-                          : `${snippets.length} obligation${snippets.length === 1 ? '' : 's'} shown so far — more may still arrive.`}
+                          ? 'Streaming merge response — obligations appear in this list as each complete obligation object arrives in the JSON (same data the backend prints line by line).'
+                          : `${snippets.length} obligation${snippets.length === 1 ? '' : 's'} received so far; the list updates as more objects finish streaming.`}
                       </p>
                     )}
                   </div>
                   
                   {/* Navigation Controls and View Legal Evidence - Header Right */}
                   <div className="flex items-center gap-3">
+                    {isAnalyzing && snippets.length > 0 && (
+                      <div
+                        className="flex flex-shrink-0 items-center gap-1.5 text-red-600"
+                        aria-live="polite"
+                        aria-busy="true"
+                        title="Still loading obligations"
+                      >
+                        <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                      </div>
+                    )}
                     {/* View Legal Evidence Button */}
                     {currentSnippet && currentSnippet.citations && currentSnippet.citations.length > 0 && (
                       <button
@@ -654,12 +663,37 @@ export function CategorySection({
                   </div>
                 </div>
 
-                {/* Content Section */}
+                {/* Stream activity log (disabled — re-enable when debugging raw stream text)
+                {queryStreamProgressLog.trim() && isAnalyzing && (
+                  <div className="border-t border-gray-100 bg-slate-50 px-4 py-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 mb-1">
+                      Stream activity
+                    </p>
+                    <pre
+                      className="text-[11px] leading-snug font-mono text-slate-700 whitespace-pre-wrap break-words max-h-28 overflow-y-auto"
+                      aria-live="polite"
+                    >
+                      {queryStreamProgressLog}
+                    </pre>
+                  </div>
+                )}
+                */}
+
+                {/* Content Section — initial fetch: overlay on card shows spinner; keep min height for layout */}
                 {snippets.length === 0 && isAnalyzing ? (
-                  <div className="px-4 py-12 flex flex-col items-center justify-center gap-3 text-gray-600 border-t border-gray-100 bg-gray-50/50">
-                    <Loader2 className="w-8 h-8 animate-spin text-blue-600" aria-hidden />
-                    <p className="text-sm text-center max-w-md">
-                      Waiting for the first obligation row. Results stream in as the model finishes each category.
+                  <div
+                    className="min-h-[14rem] border-t border-gray-100 bg-gray-50/30"
+                    aria-hidden
+                  />
+                ) : snippets.length === 0 && !isAnalyzing && aiSearchHadNoResults ? (
+                  <div
+                    className="px-4 py-12 flex flex-col items-center justify-center gap-2 text-gray-600 border-t border-gray-100 bg-gray-50/50"
+                    role="status"
+                    aria-live="polite"
+                  >
+                    <p className="text-sm font-medium text-gray-800 text-center">No obligations found</p>
+                    <p className="text-xs text-gray-500 text-center max-w-md">
+                      The search completed successfully, but no matching obligations were returned for your query and selected documents.
                     </p>
                   </div>
                 ) : currentSnippet ? (
@@ -861,6 +895,18 @@ export function CategorySection({
                     </div>
                   </div>
                 ) : null}
+                </div>
+
+                {isAnalyzing && snippets.length === 0 && (
+                  <div
+                    className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 rounded-lg bg-white/40 backdrop-blur-sm"
+                    aria-live="polite"
+                    aria-busy="true"
+                  >
+                    <Loader2 className="h-10 w-10 animate-spin text-red-600" aria-hidden />
+                    <p className="text-sm font-medium text-gray-800">Fetching obligations…</p>
+                  </div>
+                )}
               </div>
             </div>
           )}

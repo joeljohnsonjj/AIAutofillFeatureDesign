@@ -49,6 +49,10 @@ interface AgreementFormProps {
   reviewReason?: string;
   globalSearchQuery?: string;
   onGlobalSearch?: (query: string) => void;
+  /** After global AI Search returned zero obligations — show empty state in Maintenance. */
+  aiSearchHadNoResults?: boolean;
+  /** Live tail of readable `/query/stream/raw-http` lines while the request is in flight. */
+  queryStreamProgressLog?: string;
 }
 
 export function AgreementForm({ 
@@ -75,6 +79,8 @@ export function AgreementForm({
   reviewReason,
   globalSearchQuery = '',
   onGlobalSearch,
+  aiSearchHadNoResults = false,
+  queryStreamProgressLog = '',
 }: AgreementFormProps) {
   // Determine if Finish button should be enabled
   // Finish is always enabled now (no ghost values or approval needed)
@@ -144,6 +150,8 @@ export function AgreementForm({
           hasAIGeneratedFields={hasAIGeneratedFields}
           globalSearchQuery={globalSearchQuery}
           onGlobalSearch={onGlobalSearch}
+          aiSearchHadNoResults={aiSearchHadNoResults}
+          queryStreamProgressLog={queryStreamProgressLog}
         />
       </div>
 

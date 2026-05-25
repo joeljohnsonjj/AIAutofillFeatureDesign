@@ -134,7 +134,8 @@ export function normalizeBackendObligation(
 }
 
 /**
- * Normalizes both legacy flat `/query` JSON and nested `results: { results: [ { category, obligations } ] }` envelopes.
+ * Normalizes `/query` JSON: flat `results[]`, nested `results: { results: [...] }`,
+ * or merge-style `results: [ { category, obligations[] }, ... ]` (from LLM merge / stream/raw).
  */
 export function normalizeQueryEnvelope(data: unknown): BackendQueryResponse {
   const root = asRecord(data) ?? {};
@@ -152,6 +153,37 @@ export function normalizeQueryEnvelope(data: unknown): BackendQueryResponse {
   }
 
   const inner = root.results;
+
+  // `results` as array: flat obligation rows OR merge payload `{ category, obligations[] }[]`
+  if (Array.isArray(inner) && inner.length > 0) {
+    const allLookLikeCategoryGroups = inner.every((item) => {
+      const r = asRecord(item);
+      return Boolean(r && Array.isArray(r.obligations));
+    });
+    if (allLookLikeCategoryGroups) {
+      const flat: BackendObligation[] = [];
+      for (const g of inner) {
+        const gr = asRecord(g);
+        if (!gr) continue;
+        const category = String(gr.category ?? '');
+        const obligations = gr.obligations as unknown[];
+        for (const ob of obligations) {
+          flat.push(normalizeBackendObligation(asRecord(ob) ?? {}, { category }));
+        }
+      }
+      return {
+        query: topQuery,
+        total_documents_searched: Number(root.total_documents_searched ?? 0),
+        total_obligations_found: Number(root.total_obligations_found ?? flat.length),
+        total_categories:
+          root.total_categories !== undefined && root.total_categories !== null
+            ? Number(root.total_categories)
+            : undefined,
+        results: flat,
+        processed_at: String(root.processed_at ?? ''),
+      };
+    }
+  }
 
   // Legacy: `results` is a flat array of obligations
   if (Array.isArray(inner)) {
@@ -202,82 +234,6 @@ export function normalizeQueryEnvelope(data: unknown): BackendQueryResponse {
     results: [],
     processed_at: '',
   };
-}
-
-// Streaming response types (NDJSON format)
-/** Legacy: `data` is a flat obligation. Current backend: `data` is `{ category?, obligation }`. */
-export interface StreamObligationEvent {
-  type: 'obligation';
-  data: BackendObligation | { category?: string; obligation: Record<string, unknown> };
-}
-
-/** Current API: merged category block with multiple obligations (raw JSON per item). */
-export interface StreamCategoryGroupEvent {
-  type: 'category_group';
-  data: {
-    category: string;
-    obligations: unknown[];
-  };
-}
-
-export interface StreamMetadataEvent {
-  type: 'metadata';
-  data: {
-    query: string;
-    total_documents_searched: number;
-    total_obligations_found: number;
-    total_categories?: number;
-    processed_at: string;
-  };
-}
-
-export interface StreamErrorEvent {
-  type: 'error';
-  message: string;
-}
-
-export type StreamEvent =
-  | StreamObligationEvent
-  | StreamCategoryGroupEvent
-  | StreamMetadataEvent
-  | StreamErrorEvent;
-
-/** Backend may wrap the row in `{ category, obligation }` (see stream logs). */
-export function unwrapStreamObligationPayload(data: unknown): {
-  category?: string;
-  raw: Record<string, unknown>;
-} {
-  const d = asRecord(data);
-  if (!d) return { raw: {} };
-  const inner = asRecord(d.obligation);
-  if (inner && Object.keys(inner).length > 0) {
-    const category = typeof d.category === 'string' ? d.category : undefined;
-    return { category, raw: inner };
-  }
-  return {
-    category: typeof d.category === 'string' ? d.category : undefined,
-    raw: d,
-  };
-}
-
-function fingerprintNormalizedObligation(norm: BackendObligation): string {
-  const cat = norm.category ?? '';
-  const oc = norm['Owner Responsibility'].join('\u001e');
-  const r = norm['Responsible Party'];
-  const c0 = norm.Citation[0];
-  const pages = c0?.pageNumbers?.join(',') ?? '';
-  const sec = c0?.section?.join('\u001e') ?? '';
-  return `${cat}\u001f${r}\u001f${oc}\u001f${c0?.docId ?? ''}\u001f${pages}\u001f${sec}`;
-}
-
-function yieldToBrowser(): Promise<void> {
-  return new Promise((resolve) => {
-    if (typeof requestAnimationFrame !== 'undefined') {
-      requestAnimationFrame(() => resolve());
-    } else {
-      setTimeout(resolve, 0);
-    }
-  });
 }
 
 /**
@@ -369,276 +325,359 @@ export async function queryObligations(query: string, documentIds?: string[]): P
   }
 }
 
-/**
- * Stream legal obligations from the backend (NDJSON format)
- * @param query - Search query string (keywords from the search bar, can be empty)
- * @param documentIds - Array of document names/IDs to filter by (optional)
- * @param onObligation - Callback function called for each obligation as it arrives
- * @param onMetadata - Callback function called when metadata arrives
- * @param onError - Callback function called if an error occurs
- * @returns Promise that resolves when streaming is complete
- */
-export async function queryObligationsStream(
-  query: string,
-  documentIds?: string[],
-  callbacks?: {
-    onObligation?: (obligation: BackendObligation, index: number) => void;
-    onMetadata?: (metadata: StreamMetadataEvent['data']) => void;
-    onError?: (error: string) => void;
-    onComplete?: () => void;
+/** Python /query/stream/raw-http (or legacy /query/stream/raw) may inject these between LLM chunks; they are not valid JSON. */
+const RAW_STREAM_TOKEN_COUNT_MARKER = /\n\[\d+ tokens\]\n/g;
+
+/** Lines that sometimes leak into the HTTP body alongside streamed text (break JSON extraction). */
+function stripEmbeddedServerLogLines(s: string): string {
+  return (
+    s
+      // Python logging: "2026-05-21 12:06:25,541 - httpx - INFO - ..."
+      .replace(
+        /^\d{4}-\d{2}-\d{2}\s+\d{1,2}:\d{2}:\d{2},\d+\s+-\s+[\w.-]+\s+-\s+(?:INFO|WARNING|ERROR|DEBUG|CRITICAL)\s+-.*$/gim,
+        ''
+      )
+      // tqdm / transformers style progress
+      .replace(/^Batches:\s*.+$/gim, '')
+      // Uvicorn / FastAPI access log (sometimes mixed into captured stream text)
+      .replace(/^INFO:\s+[\d.:]+\s+-\s+"[^"]+"\s+\d{3}\s+OK\s*$/gim, '')
+  );
+}
+
+function findMatchingJsonObjectEnd(s: string, start: number): number {
+  if (s[start] !== '{') return -1;
+  let depth = 1;
+  let inStr = false;
+  let escape = false;
+  for (let i = start + 1; i < s.length; i++) {
+    const c = s[i];
+    if (inStr) {
+      if (escape) {
+        escape = false;
+        continue;
+      }
+      if (c === '\\') {
+        escape = true;
+        continue;
+      }
+      if (c === '"') inStr = false;
+      continue;
+    }
+    if (c === '"') {
+      inStr = true;
+      continue;
+    }
+    if (c === '{') depth++;
+    else if (c === '}') {
+      depth--;
+      if (depth === 0) return i;
+    }
   }
-): Promise<void> {
-  const streamT0 = performance.now();
-  let lastReadAt = streamT0;
-  let lastObligationEmitAt: number | null = null;
-  let readCount = 0;
-  let totalChunkBytes = 0;
-  let ndjsonLineCount = 0;
+  return -1;
+}
 
-  const dbg = (step: string, detail?: Record<string, unknown>) => {
-    const t = performance.now();
-    console.log(`[query/stream] ${step}`, {
-      msSinceStreamStart: Math.round(t - streamT0),
-      ...detail,
-    });
-  };
+function looksLikeMergePayload(obj: unknown): boolean {
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return false;
+  const o = obj as Record<string, unknown>;
+  if (Array.isArray(o.results)) return true;
+  const nested = asRecord(o.results);
+  if (nested && Array.isArray(nested.results)) return true;
+  if (typeof o.query === 'string' && o.results !== undefined) return true;
+  return false;
+}
 
-  try {
-    const requestBody: {
-      query: string;
-      document_ids?: string[] | null;
-      save_output?: boolean;
-    } = {
-      query: query || '',
-      save_output: false,
+/** Stable key for deduping the same obligation when it appears in draft vs reconciled merge JSON. */
+function obligationFingerprintForDedup(ob: BackendObligation): string {
+  const owner = (ob['Owner Responsibility'] ?? []).join('\u001e');
+  const reasoning = (ob.Reasoning ?? []).join('\u001e');
+  const cit = (ob.Citation ?? [])
+    .map((c) => `${c.docId}:${c.pageNumbers.join(',')}:${c.section.join(',')}`)
+    .join('|');
+  return `${ob['Responsible Party']}\u001f${ob.DutyType}\u001f${owner}\u001f${reasoning}\u001f${cit}`;
+}
+
+/**
+ * True for a single obligation row inside `results[].obligations[]`, not merge envelope / category group / citation.
+ */
+function isObligationLikeStreamObject(parsed: unknown): boolean {
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return false;
+  const r = parsed as Record<string, unknown>;
+  const keys = Object.keys(r);
+
+  if (Array.isArray(r.results)) return false;
+  if (typeof r.query === 'string' && r.results !== undefined) return false;
+  if (typeof r.processed_at === 'string' && r.results !== undefined) return false;
+  if ('total_obligations_found' in r || 'total_documents_searched' in r) return false;
+  if (typeof r.category === 'string' && Array.isArray(r.obligations)) return false;
+
+  if (
+    keys.length > 0 &&
+    keys.every((k) =>
+      ['docId', 'document_id', 'pageNumbers', 'page_numbers', 'section', 'sections'].includes(k)
+    )
+  ) {
+    return false;
+  }
+
+  const hasParty =
+    r['Responsible Party'] != null || r['responsible party'] != null || r.responsibleParty != null;
+  const hasOwner = r['Owner Responsibility'] != null || r['owner responsibility'] != null;
+  const hasReason = r.Reasoning != null || r.reasoning != null;
+  const hasDuty = r.DutyType != null || r.dutyType != null || r.duty_type != null;
+  const hasCitation = r.Citation != null || r.citations != null || r.citation != null;
+
+  if (hasCitation && !hasParty && !hasOwner && !hasReason && !hasDuty) return false;
+  return hasParty || hasOwner || hasReason || hasDuty;
+}
+
+/**
+ * While `/query/stream/raw-http` is still receiving bytes, scan the buffer for **complete** brace-balanced
+ * JSON objects that look like obligation rows. Each obligation becomes visible in the UI as soon as its
+ * closing `}` arrives (same order as tokens in the terminal), without waiting for the full merge object.
+ * Draft vs reconciled duplicates are deduped (later span in the buffer wins).
+ */
+export function extractStreamingObligationsFromRawBuffer(buffer: string): BackendObligation[] {
+  const work = stripEmbeddedServerLogLines(buffer.replace(RAW_STREAM_TOKEN_COUNT_MARKER, '\n'));
+  const hits: { start: number; end: number; obligation: BackendObligation }[] = [];
+
+  for (let i = 0; i < work.length; i++) {
+    if (work[i] !== '{') continue;
+    const end = findMatchingJsonObjectEnd(work, i);
+    if (end === -1) continue;
+    const slice = work.slice(i, end + 1);
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(slice);
+    } catch {
+      continue;
+    }
+    if (!isObligationLikeStreamObject(parsed)) continue;
+    const obligation = normalizeBackendObligation(asRecord(parsed) ?? {}, {});
+    hits.push({ start: i, end, obligation });
+  }
+
+  const byFp = new Map<string, { start: number; end: number; obligation: BackendObligation }>();
+  for (const h of hits) {
+    const fp = obligationFingerprintForDedup(h.obligation);
+    const prev = byFp.get(fp);
+    if (!prev || h.end > prev.end || (h.end === prev.end && h.start >= prev.start)) {
+      byFp.set(fp, { start: h.start, end: h.end, obligation: h.obligation });
+    }
+  }
+
+  return [...byFp.values()].sort((a, b) => a.start - b.start).map((h) => h.obligation);
+}
+
+/**
+ * Short tail of human-readable stream lines (mirrors backend terminal noise without huge JSON lines).
+ */
+export function extractProgressLinesFromRawStream(buffer: string, maxLines = 24): string {
+  const cleaned = stripEmbeddedServerLogLines(buffer.replace(RAW_STREAM_TOKEN_COUNT_MARKER, '\n'));
+  const lines = cleaned.split(/\r?\n/);
+  const picked: string[] = [];
+  for (let i = lines.length - 1; i >= 0 && picked.length < maxLines; i--) {
+    const raw = lines[i];
+    const t = raw.trim();
+    if (!t) continue;
+    if (t.length > 220) continue;
+    if (/^\s*"[^"]+"\s*:/.test(raw)) continue;
+    if (/^[{}\[\]],?$/.test(t)) continue;
+    picked.push(t);
+  }
+  return picked.reverse().join('\n');
+}
+
+/**
+ * Parse the final merge JSON from the text/plain body of POST /query/stream/raw-http.
+ * - Strips injected "[N tokens]" lines and embedded Python/httpx log lines.
+ * - Scans the **full** response (do not truncate at `[COMPLETE]`; some backends emit the
+ *   reconciled merge JSON **after** the `[COMPLETE]` line).
+ * - Finds brace-balanced `{...}` slices, keeps the **last** one that looks like a /query merge envelope.
+ */
+export function parseRawQueryStreamPlainText(fullText: string): BackendQueryResponse {
+  const text = fullText.trim();
+  if (!text) {
+    return normalizeQueryEnvelope({});
+  }
+
+  const errLine = text.match(/^\[ERROR\]\s*(.*)$/m);
+  if (errLine && !text.includes('{')) {
+    return {
+      query: '',
+      total_documents_searched: 0,
+      total_obligations_found: 0,
+      results: [],
+      processed_at: '',
+      error: (errLine[1] ?? '').trim() || 'Stream reported an error.',
     };
+  }
 
-    // Include document_ids only if provided and not empty
-    if (documentIds && documentIds.length > 0) {
-      requestBody.document_ids = documentIds;
+  const withoutTokenCounts = text.replace(RAW_STREAM_TOKEN_COUNT_MARKER, '\n');
+  const work = stripEmbeddedServerLogLines(withoutTokenCounts).trim();
+
+  let lastMerge: unknown | null = null;
+  for (let i = 0; i < work.length; i++) {
+    if (work[i] !== '{') continue;
+    const end = findMatchingJsonObjectEnd(work, i);
+    if (end === -1) continue;
+    const slice = work.slice(i, end + 1);
+    try {
+      const parsed: unknown = JSON.parse(slice);
+      if (looksLikeMergePayload(parsed)) {
+        lastMerge = parsed;
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  if (lastMerge !== null) {
+    return normalizeQueryEnvelope(lastMerge);
+  }
+
+  // Fallback: whole buffer is a single JSON object (no progress prefix)
+  try {
+    return normalizeQueryEnvelope(JSON.parse(work));
+  } catch {
+    // Last resort: segment after final [COMPLETE] (some pipelines only emit JSON there)
+    const completeParts = withoutTokenCounts.split(/\r?\n\[COMPLETE\]/);
+    const tailRaw = completeParts[completeParts.length - 1]?.trim() ?? '';
+    const tail = stripEmbeddedServerLogLines(tailRaw).trim();
+    if (tail && tail !== work) {
+      for (let i = 0; i < tail.length; i++) {
+        if (tail[i] !== '{') continue;
+        const end = findMatchingJsonObjectEnd(tail, i);
+        if (end === -1) continue;
+        try {
+          const parsed: unknown = JSON.parse(tail.slice(i, end + 1));
+          if (looksLikeMergePayload(parsed)) {
+            return normalizeQueryEnvelope(parsed);
+          }
+        } catch {
+          continue;
+        }
+      }
     }
 
-    dbg('fetch:start', { url: `${API_BASE_URL}/query/stream`, body: requestBody });
+    const errMsg = text.match(/\[ERROR\]\s*([^\n]+)/);
+    return {
+      query: '',
+      total_documents_searched: 0,
+      total_obligations_found: 0,
+      results: [],
+      processed_at: '',
+      error:
+        errMsg?.[1]?.trim() ||
+        'Could not parse merge JSON from raw stream response. Ensure the stream completed successfully.',
+    };
+  }
+}
 
-    const url = `${API_BASE_URL}/query/stream`;
+export interface QueryObligationsStreamRawOptions {
+  save_output?: boolean;
+  /**
+   * Called after each decoded chunk with the full accumulated text (optional: progress UI / debug log).
+   */
+  onTextChunk?: (accumulated: string, chunk: string) => void;
+  /**
+   * When `onTextChunk` is set, await one animation frame after each chunk (and after the final flush) so
+   * the browser can paint incremental UI. Set to `false` for maximum read throughput (e.g. tests).
+   * @default true when `onTextChunk` is provided
+   */
+  yieldToUiEachChunk?: boolean;
+}
 
+/**
+ * POST /query/stream/raw-http — text/plain stream (progress + LLM JSON), same request body as /query.
+ * Buffers the full response, extracts the merge JSON, normalizes like POST /query.
+ */
+export async function queryObligationsStreamRaw(
+  query: string,
+  documentIds?: string[],
+  options?: QueryObligationsStreamRawOptions
+): Promise<BackendQueryResponse> {
+  const { onTextChunk, save_output = false, yieldToUiEachChunk } = options ?? {};
+  const shouldYieldToUi =
+    typeof yieldToUiEachChunk === 'boolean' ? yieldToUiEachChunk : Boolean(onTextChunk);
+
+  const yieldForUiPaint = async () => {
+    if (!shouldYieldToUi || !onTextChunk) return;
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+  };
+
+  const requestBody: {
+    query: string;
+    document_ids?: string[] | null;
+    save_output?: boolean;
+  } = {
+    query: query || '',
+    save_output,
+  };
+
+  if (documentIds && documentIds.length > 0) {
+    requestBody.document_ids = documentIds;
+  }
+
+  const url = `${API_BASE_URL}/query/stream/raw-http`;
+
+  try {
     const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Accept: 'application/x-ndjson',
+        Accept: 'text/plain, */*',
       },
       body: JSON.stringify(requestBody),
     });
 
-    dbg('fetch:responseHeaders', {
-      status: response.status,
-      ok: response.ok,
-      msToHeaders: Math.round(performance.now() - streamT0),
-      contentType: response.headers.get('Content-Type') ?? '(none)',
-    });
-    
     if (!response.ok) {
       const isServiceDown = response.status === 503 || response.status === 502 || response.status === 504;
       const error = new Error(`API request failed with status ${response.status}`);
-      (error as any).isConnectionError = isServiceDown;
+      (error as { isConnectionError?: boolean }).isConnectionError = isServiceDown;
       throw error;
     }
-    
+
     if (!response.body) {
-      throw new Error('Response body is null');
+      const text = await response.text();
+      return parseRawQueryStreamPlainText(text);
     }
-    
-    // Read the stream line by line (NDJSON format)
+
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
-    let obligationIndex = 0;
-    let streamHalted = false;
-    const seenObligationKeys = new Set<string>();
 
-    const tryEmitNormalized = async (norm: BackendObligation): Promise<void> => {
-      const party = norm['Responsible Party']?.trim() ?? '';
-      const hasOwner = norm['Owner Responsibility'].some((s) => String(s).trim());
-      if (!party && !hasOwner) return;
-
-      const key = fingerprintNormalizedObligation(norm);
-      if (seenObligationKeys.has(key)) {
-        dbg('emit:skippedDuplicate', { fingerprint: key.slice(0, 80) });
-        return;
-      }
-      seenObligationKeys.add(key);
-      const emitNow = performance.now();
-      dbg('emit:obligation', {
-        uiIndex: obligationIndex,
-        dutyTypePreview: (norm.DutyType ?? '').slice(0, 100),
-        category: norm.category ?? '',
-        msSinceStreamStart: Math.round(emitNow - streamT0),
-        msSincePrevObligationEmit:
-          lastObligationEmitAt != null ? Math.round(emitNow - lastObligationEmitAt) : null,
-      });
-      lastObligationEmitAt = emitNow;
-      callbacks?.onObligation?.(norm, obligationIndex);
-      obligationIndex++;
-      const afterCb = performance.now();
-      dbg('emit:afterOnObligationCallback', {
-        uiIndex: obligationIndex - 1,
-        onObligationMs: Math.round(afterCb - emitNow),
-      });
-      await yieldToBrowser();
-      dbg('emit:afterYieldToBrowser', {
-        uiIndex: obligationIndex - 1,
-        yieldMs: Math.round(performance.now() - afterCb),
-      });
-    };
-
-    const handleParsedEvent = async (event: StreamEvent): Promise<boolean> => {
-      if (event.type === 'category_group') {
-        const list = event.data?.obligations;
-        if (!Array.isArray(list)) {
-          console.warn('[query/stream] category_group missing obligations array', event.data);
-          return false;
-        }
-        dbg('event:category_group', {
-          category: String(event.data?.category ?? ''),
-          obligationCount: list.length,
-        });
-        const category = String(event.data?.category ?? '');
-        for (const ob of list) {
-          const norm = normalizeBackendObligation(asRecord(ob) ?? {}, { category });
-          await tryEmitNormalized(norm);
-        }
-        return false;
-      }
-      if (event.type === 'obligation') {
-        dbg('event:obligation_line', {
-          category: (event.data as { category?: string })?.category,
-        });
-        const { category, raw } = unwrapStreamObligationPayload(event.data);
-        if (!raw || Object.keys(raw).length === 0) {
-          console.warn('[query/stream] obligation event missing payload', event.data);
-          return false;
-        }
-        const norm = normalizeBackendObligation(raw, { category });
-        await tryEmitNormalized(norm);
-        return false;
-      }
-      if (event.type === 'metadata') {
-        dbg('event:metadata', { data: event.data });
-        callbacks?.onMetadata?.(event.data);
-        return false;
-      }
-      if (event.type === 'error') {
-        dbg('event:error', { message: event.message });
-        callbacks?.onError?.(event.message);
-        return true;
-      }
-      return false;
-    };
-
-    const consumeLine = async (raw: string): Promise<boolean> => {
-      const line = raw.trim();
-      if (!line) return false;
-      ndjsonLineCount++;
-      let event: StreamEvent;
-      try {
-        event = JSON.parse(line) as StreamEvent;
-      } catch (parseError) {
-        console.error('[query/stream] NDJSON parse error', {
-          linePreview: line.slice(0, 200),
-          parseError,
-        });
-        callbacks?.onError?.(`Invalid NDJSON line: ${line.slice(0, 120)}`);
-        return true;
-      }
-      dbg('ndjson:parsed', {
-        lineIndex: ndjsonLineCount,
-        type: (event as StreamEvent).type,
-        lineChars: line.length,
-        preview: line.length > 160 ? `${line.slice(0, 160)}…` : line,
-      });
-      return handleParsedEvent(event);
-    };
-
-    while (!streamHalted) {
+    while (true) {
       const { done, value } = await reader.read();
-      const chunkAt = performance.now();
-
       if (done) {
-        dbg('read:done', {
-          readCount,
-          totalChunkBytes,
-          ndjsonLineCount,
-          msSinceStreamStart: Math.round(chunkAt - streamT0),
-        });
         buffer += decoder.decode(undefined, { stream: false });
-        if (buffer.trim()) {
-          streamHalted = await consumeLine(buffer);
-        }
-        if (!streamHalted) {
-          dbg('stream:complete', {
-            totalMs: Math.round(performance.now() - streamT0),
-            readCount,
-            totalChunkBytes,
-            ndjsonLineCount,
-            obligationsEmitted: obligationIndex,
-          });
-          callbacks?.onComplete?.();
-        }
+        onTextChunk?.(buffer, '');
+        await yieldForUiPaint();
         break;
       }
-
-      readCount++;
-      const byteLen = value?.byteLength ?? 0;
-      totalChunkBytes += byteLen;
-      dbg('read:chunk', {
-        readCount,
-        byteLength: byteLen,
-        msSinceStreamStart: Math.round(chunkAt - streamT0),
-        msSincePrevRead: Math.round(chunkAt - lastReadAt),
-      });
-      lastReadAt = chunkAt;
-
-      buffer += decoder.decode(value, { stream: true });
-
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-
-      for (const line of lines) {
-        streamHalted = await consumeLine(line);
-        if (streamHalted) {
-          await reader.cancel().catch(() => undefined);
-          break;
-        }
-      }
-      if (streamHalted) {
-        break;
-      }
+      const chunk = decoder.decode(value, { stream: true });
+      buffer += chunk;
+      onTextChunk?.(buffer, chunk);
+      await yieldForUiPaint();
     }
 
+    return parseRawQueryStreamPlainText(buffer);
   } catch (error) {
-    console.error('[query/stream] error', {
+    console.error('[query/stream/raw-http] error', {
       message: error instanceof Error ? error.message : String(error),
-      msSinceStreamStart: Math.round(performance.now() - streamT0),
     });
-    
-    // Check if it's a connection error
-    const isConnectionError = 
-      error instanceof TypeError && error.message.includes('Failed to fetch') ||
-      error instanceof TypeError && error.message.includes('NetworkError') ||
-      (error instanceof Error && (
-        error.message.includes('NetworkError') ||
-        error.message.includes('Failed to fetch') ||
-        error.message.includes('ERR_NETWORK') ||
-        error.message.includes('ERR_INTERNET_DISCONNECTED') ||
-        error.message.includes('ERR_CONNECTION_REFUSED')
-      ));
-    
-    // Create a custom error with connection flag
+
+    const isConnectionError =
+      (error instanceof TypeError && error.message.includes('Failed to fetch')) ||
+      (error instanceof TypeError && error.message.includes('NetworkError')) ||
+      (error instanceof Error &&
+        (error.message.includes('NetworkError') ||
+          error.message.includes('Failed to fetch') ||
+          error.message.includes('ERR_NETWORK') ||
+          error.message.includes('ERR_INTERNET_DISCONNECTED') ||
+          error.message.includes('ERR_CONNECTION_REFUSED')));
+
     const enhancedError = error instanceof Error ? error : new Error(String(error));
-    (enhancedError as any).isConnectionError = isConnectionError;
-    
-    callbacks?.onError?.(enhancedError.message);
+    (enhancedError as { isConnectionError?: boolean }).isConnectionError = isConnectionError;
     throw enhancedError;
   }
 }
