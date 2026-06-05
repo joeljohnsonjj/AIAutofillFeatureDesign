@@ -16,16 +16,69 @@ export type ParsedAssistantStructure = {
   globalCitations: string[];
 };
 
-const TRAILING_CITATIONS_RE = /\n\*{0,2}Citations\*{0,2}:\s*([\s\S]*)$/i;
+/** Trailing aggregate block often duplicated per-responsibility cites (markdown optional). */
+const TRAILING_CITATIONS_RE =
+  /\n\*{0,2}(?:Citations|Sources)\*{0,2}:\s*([\s\S]*)$/i;
 
-/** Lines like "Citation: ..." (case-insensitive), including "Citations:" per block */
-const CITATION_LINE_RE = /^\s*Citations?:\s*(.+)$/gim;
+/**
+ * Lines like "Citation: ..." / "- Citation: ..." / "* Citations: ..." (case-insensitive).
+ * List markers are common in assistant markdown.
+ */
+const CITATION_LINE_RE = /^\s*(?:[-*+]\s+)?Citations?:\s*(.+)$/gim;
+
+/**
+ * One line may list several locations, e.g.
+ * "Page 8, Section 11(a); Page 9, Section 13 (MTNNN.pdf)"
+ * Split so each chip opens the PDF to the correct page.
+ */
+export function splitCompoundCitationLine(line: string): string[] {
+  const t = line.trim();
+  if (!t) return [];
+
+  const documentPipe = t.match(/^(Document:\s*[^|]+\|\s*)/i);
+  let docPrefix = '';
+  let rest = t;
+  if (documentPipe) {
+    docPrefix = documentPipe[1];
+    rest = t.slice(documentPipe[0].length).trim();
+  }
+
+  const trailingParen = /\(\s*([^)]+\.pdf)\s*\)\s*$/i.exec(rest);
+  let sharedPdf = '';
+  let core = rest;
+  if (trailingParen) {
+    sharedPdf = trailingParen[0].trim();
+    core = rest.slice(0, trailingParen.index).trim();
+  }
+
+  const byPageBreak = core
+    .split(/\s*;\s*(?=\bPage\s+\d+)/i)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const segments =
+    byPageBreak.length > 1 ? byPageBreak : core.includes(';') ? core.split(/\s*;\s*/).map((s) => s.trim()).filter(Boolean) : [core];
+
+  if (segments.length <= 1) {
+    return [t];
+  }
+
+  return segments.map((seg) => {
+    let piece = seg;
+    if (docPrefix && !/^Document:/i.test(piece)) {
+      piece = `${docPrefix.trimEnd()} ${piece}`;
+    }
+    if (sharedPdf && !/\b[\w.-]+\.pdf\b/i.test(piece) && !/\([^)]+\.pdf\)/i.test(piece)) {
+      piece = `${piece} ${sharedPdf}`;
+    }
+    return piece.replace(/\s+/g, ' ').trim();
+  });
+}
 
 function stripCitationLines(block: string): { body: string; cites: string[] } {
   const cites: string[] = [];
   const body = block.replace(CITATION_LINE_RE, (_m, g1: string) => {
     const t = (g1 || '').trim();
-    if (t) cites.push(t);
+    if (t) cites.push(...splitCompoundCitationLine(t));
     return '';
   });
   return { body: body.replace(/\n{3,}/g, '\n\n').trim(), cites };
@@ -44,6 +97,11 @@ function splitGlobalCitationTail(raw: string): { main: string; global: string[] 
     .map((s) => s.trim())
     .filter(Boolean);
   return { main, global: parts.length ? parts : [tail] };
+}
+
+/** Remove trailing aggregate "Citations:" / "Sources:" block (used for raw markdown fallback). */
+export function stripAggregatedCitationFooter(text: string): string {
+  return splitGlobalCitationTail(text).main;
 }
 
 function splitNumberedBlocks(text: string): { preamble: string; blocks: string[] } {

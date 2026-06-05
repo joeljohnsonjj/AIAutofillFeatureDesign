@@ -3,6 +3,7 @@ import {
   openCitationSourceInNewTab,
   parseAssistantForCitations,
   shortCitationLabel,
+  stripAggregatedCitationFooter,
   stripTrailingSourceCountLines,
 } from './citationParse';
 import { formatMessageBody } from './chatFormatting';
@@ -50,7 +51,7 @@ export function AssistantBubbleContent({ content, messageKey, isStreaming }: Pro
     parsed.blocks.some((b) => b.cites.length > 0) || parsed.globalCitations.length > 0;
 
   if (!hasStructure) {
-    return formatMessageBody(content, messageKey, 'assistant');
+    return formatMessageBody(stripAggregatedCitationFooter(cleaned), messageKey, 'assistant');
   }
 
   const parts: ReactNode[] = [];
@@ -81,7 +82,8 @@ export function AssistantBubbleContent({ content, messageKey, isStreaming }: Pro
   });
 
   const anyBlockCites = parsed.blocks.some((b) => b.cites.length > 0);
-  if (parsed.globalCitations.length > 0 && !anyBlockCites) {
+  // Only show aggregate tail when there are no numbered responsibility blocks (per-block Sources only).
+  if (parsed.globalCitations.length > 0 && !anyBlockCites && parsed.blocks.length === 0) {
     parts.push(
       <div key={`${messageKey}-global-cites`} className="mb-2">
         <SourceCitationButtons cites={parsed.globalCitations} />
