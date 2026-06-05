@@ -127,8 +127,19 @@ export function shortCitationLabel(raw: string): string {
     const name = doc[1].trim().replace(/\.pdf$/i, '');
     return name.length > 14 ? `${name.slice(0, 12)}…` : name;
   }
-  const page = raw.match(/page\s*\d+/i);
-  if (page) return page[0].slice(0, 12);
+  const pageRange = raw.match(/\bPages?\s*:?\s*(\d+)\s*[-–—]\s*(\d+)\b/i);
+  if (pageRange) {
+    const pdf = raw.match(/\b([\w.-]+\.pdf)\b/i);
+    const base = pdf ? pdf[1].replace(/\.pdf$/i, '') : '';
+    const span = `p.${pageRange[1]}–${pageRange[2]}`;
+    if (base) {
+      const head = base.length > 8 ? `${base.slice(0, 7)}…` : base;
+      return `${head} ${span}`;
+    }
+    return span.length > 18 ? `${span.slice(0, 16)}…` : span;
+  }
+  const page = raw.match(/\bpages?\s*\d+/i);
+  if (page) return page[0].slice(0, 14);
   const s = raw.replace(/\s+/g, ' ').trim();
   return s.length > 16 ? `${s.slice(0, 14)}…` : s || 'Source';
 }
@@ -149,14 +160,21 @@ export function parseCitationForPdf(raw: string): { documentName: string; pageNu
   documentName = documentName.replace(/^["']|["']$/g, '').trim();
   documentName = documentName.replace(/^\(+/, '').replace(/\)+$/, '').trim();
   const pages: number[] = [];
-  const range = text.match(/pages?\s*(\d+)\s*[-–—]\s*(\d+)/i);
+  // "Pages 2-30", "Page: 5-7", "pages 12–14" (model often uses plural + hyphen range)
+  const range = text.match(/\bpages?\s*:?\s*(\d+)\s*[-–—]\s*(\d+)\b/i);
   if (range) {
     const a = parseInt(range[1], 10);
     const b = parseInt(range[2], 10);
     if (!Number.isNaN(a) && !Number.isNaN(b)) {
       const lo = Math.min(a, b);
       const hi = Math.max(a, b);
-      for (let p = lo; p <= hi; p++) pages.push(p);
+      const span = hi - lo + 1;
+      const maxExpanded = 150;
+      if (span <= maxExpanded) {
+        for (let p = lo; p <= hi; p++) pages.push(p);
+      } else {
+        pages.push(lo);
+      }
     }
   }
   const pageMatches = [...text.matchAll(/\bPage\s+(\d+)\b/gi)];
