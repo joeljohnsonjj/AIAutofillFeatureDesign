@@ -82,11 +82,16 @@ export function AssistantBubbleContent({ content, messageKey, isStreaming }: Pro
   });
 
   const anyBlockCites = parsed.blocks.some((b) => b.cites.length > 0);
-  // Only show aggregate tail when there are no numbered responsibility blocks (per-block Sources only).
-  if (parsed.globalCitations.length > 0 && !anyBlockCites && parsed.blocks.length === 0) {
+  // Trailing "Citations:" / "Sources:" with no per-block lines: show footer as Sources.
+  // When there are numbered blocks (many responsibilities), collapse to one chip for generic cites.
+  if (parsed.globalCitations.length > 0 && !anyBlockCites) {
+    const citesForFooter =
+      parsed.blocks.length > 0
+        ? [parsed.globalCitations.map((s) => s.trim()).filter(Boolean).join('; ')].filter(Boolean)
+        : parsed.globalCitations;
     parts.push(
       <div key={`${messageKey}-global-cites`} className="mb-2">
-        <SourceCitationButtons cites={parsed.globalCitations} />
+        <SourceCitationButtons cites={citesForFooter} />
       </div>
     );
   }
