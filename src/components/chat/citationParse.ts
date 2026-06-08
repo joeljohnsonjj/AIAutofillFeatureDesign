@@ -27,6 +27,34 @@ const TRAILING_CITATIONS_RE =
 const CITATION_LINE_RE = /^\s*(?:[-*+]\s+)?Citations?:\s*(.+)$/gim;
 
 /**
+ * Aggregate line: `MTNNN.pdf, Page 1, Section …; Page 3, Section …` (one `.pdf` at start, then
+ * `;` before each subsequent `Page N`). Produces one `Document: … | …` string per location for chips / PDF.
+ * Returns null if this pattern does not apply.
+ */
+export function expandLeadingPdfSemicolonPageCitations(tail: string): string[] | null {
+  const t = tail.trim();
+  const m = t.match(/^([\w.-]+\.pdf)\s*,\s*(.+)$/i);
+  if (!m) return null;
+  const doc = m[1].trim();
+  const body = m[2].trim();
+  if (!/\bPage\s+\d+/i.test(body)) return null;
+  const segs = body
+    .split(/\s*;\s*(?=\bPage\s+\d+)/i)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (!segs.length) return null;
+  return segs.map((seg) => {
+    const s = seg.replace(/\s+/g, ' ').trim();
+    if (/^Document:/i.test(s)) return s;
+    if (/\b[\w.-]+\.pdf\b/i.test(s)) {
+      if (s.includes('|')) return s;
+      return `Document: ${s.replace(/\s*,\s*/, ' | ')}`;
+    }
+    return `Document: ${doc} | ${s}`;
+  });
+}
+
+/**
  * One line may list several locations, e.g.
  * "Page 8, Section 11(a); Page 9, Section 13 (MTNNN.pdf)"
  * Split so each chip opens the PDF to the correct page.
@@ -34,6 +62,11 @@ const CITATION_LINE_RE = /^\s*(?:[-*+]\s+)?Citations?:\s*(.+)$/gim;
 export function splitCompoundCitationLine(line: string): string[] {
   const t = line.trim();
   if (!t) return [];
+
+  const aggregate = expandLeadingPdfSemicolonPageCitations(t);
+  if (aggregate?.length) {
+    return aggregate;
+  }
 
   const documentPipe = t.match(/^(Document:\s*[^|]+\|\s*)/i);
   let docPrefix = '';
@@ -93,10 +126,13 @@ function splitGlobalCitationTail(raw: string): { main: string; global: string[] 
   const tail = m[1].trim();
   const main = raw.slice(0, m.index).trimEnd();
   if (!tail) return { main, global: [] };
-  const parts = tail
-    .split(/\s*;\s*/)
-    .map((s) => s.trim())
-    .filter(Boolean);
+  const expanded = expandLeadingPdfSemicolonPageCitations(tail);
+  const parts = expanded?.length
+    ? expanded
+    : tail
+        .split(/\s*;\s*/)
+        .map((s) => s.trim())
+        .filter(Boolean);
   return { main, global: parts.length ? parts : [tail] };
 }
 
