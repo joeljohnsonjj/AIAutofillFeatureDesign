@@ -70,6 +70,18 @@ function normalizeCitationItem(raw: unknown): CitationItem {
   return { docId, pageNumbers, section };
 }
 
+/** Normalize a single backend/chat citation object (docId, pageNumbers string|array, section string|array). */
+export function normalizeChatCitationObject(raw: unknown): CitationItem {
+  return normalizeCitationItem(raw);
+}
+
+/** One PDF source line for chat chips / parseCitationForPdf (combined pages + sections). */
+export function formatCitationItemAsSourceLine(cit: CitationItem): string {
+  const pages = cit.pageNumbers.length ? cit.pageNumbers.join(', ') : '';
+  const sections = cit.section.length ? cit.section.join(', ') : '';
+  return `Document: ${cit.docId} | Pages: ${pages}${sections ? ` | Sections: ${sections}` : ''}`;
+}
+
 function deriveDutyType(category: string | undefined, party: string, ownerLines: string[]): string {
   const first = ownerLines.find((s) => s.trim())?.trim() ?? '';
   if (first) {
@@ -710,11 +722,7 @@ export function transformObligationToSnippet(obligation: BackendObligation, inde
   
   // Build citation text from all citations
   const citationText = citations
-    .map((cit) => {
-      const pages = cit.pageNumbers.length ? cit.pageNumbers.join(', ') : '';
-      const sections = cit.section.length ? cit.section.join(', ') : '';
-      return `Document: ${cit.docId} | Pages: ${pages}${sections ? ` | Sections: ${sections}` : ''}`;
-    })
+    .map((cit) => formatCitationItemAsSourceLine(cit))
     .join('\n');
 
   const categoryLine = obligation.category ? `Category: ${obligation.category}\n\n` : '';

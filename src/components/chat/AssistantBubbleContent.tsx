@@ -1,11 +1,17 @@
 import type { ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   openCitationSourceInNewTab,
   parseAssistantForCitations,
+  parseAssistantLayoutForExtraction,
+  type ParsedAssistantStructure,
   shortCitationLabel,
   stripAggregatedCitationFooter,
   stripTrailingSourceCountLines,
 } from './citationParse';
+import { mergeGeminiCitationExtraction } from './citationRenderMerge';
+import { stripEmbeddedCitationObjectsFromAssistantText } from './assistantCitationJson';
+import { fetchExtractedCitationsFromAssistant } from '../../services/citationNormalizerApi';
 import { formatMessageBody } from './chatFormatting';
 import { CHAT_ACCENT_ON_LIGHT, CHAT_TEXT_SECONDARY } from '../../constants/landRecord';
 
@@ -40,27 +46,18 @@ function SourceCitationButtons({ cites }: { cites: string[] }) {
   );
 }
 
-export function AssistantBubbleContent({ content, messageKey, isStreaming }: Props): ReactNode {
-  if (isStreaming || !content.trim()) {
-    return formatMessageBody(content, messageKey, 'assistant');
-  }
-
-  const cleaned = stripTrailingSourceCountLines(content.trim());
-  const parsed = parseAssistantForCitations(cleaned);
-  const hasStructure =
-    parsed.blocks.some((b) => b.cites.length > 0) || parsed.globalCitations.length > 0;
-
-  if (!hasStructure) {
-    return formatMessageBody(stripAggregatedCitationFooter(cleaned), messageKey, 'assistant');
-  }
-
+function renderStructuredMessage(
+  parsed: ParsedAssistantStructure,
+  messageKey: string,
+  opts?: { resolvingNote?: boolean },
+): ReactNode {
   const parts: ReactNode[] = [];
 
   if (parsed.preamble.trim()) {
     parts.push(
       <div key={`${messageKey}-pre`} className="mb-2">
         {formatMessageBody(parsed.preamble, `${messageKey}-pre`, 'assistant')}
-      </div>
+      </div>,
     );
   }
 
@@ -77,13 +74,11 @@ export function AssistantBubbleContent({ content, messageKey, isStreaming }: Pro
         ) : (
           chip
         )}
-      </div>
+      </div>,
     );
   });
 
   const anyBlockCites = parsed.blocks.some((b) => b.cites.length > 0);
-  // Trailing "Citations:" / "Sources:" with no per-block lines: show footer as Sources.
-  // When there are numbered blocks (many responsibilities), collapse to one chip for generic cites.
   if (parsed.globalCitations.length > 0 && !anyBlockCites) {
     const citesForFooter =
       parsed.blocks.length > 0
@@ -92,9 +87,141 @@ export function AssistantBubbleContent({ content, messageKey, isStreaming }: Pro
     parts.push(
       <div key={`${messageKey}-global-cites`} className="mb-2">
         <SourceCitationButtons cites={citesForFooter} />
-      </div>
+      </div>,
+    );
+  }
+
+  if (opts?.resolvingNote) {
+    parts.push(
+      <p
+        key={`${messageKey}-resolving`}
+        className="mt-1 text-[11px] italic"
+        style={{ color: CHAT_TEXT_SECONDARY }}
+      >
+        Resolving sources…
+      </p>,
     );
   }
 
   return <div className="assistant-cited-content">{parts}</div>;
+}
+
+function layoutWantsStructuredView(layout: {
+  preamble: string;
+  blocksRaw: string[];
+  globalTail: string[];
+}): boolean {
+  return Boolean(
+    layout.preamble.trim() ||
+      layout.blocksRaw.length > 0 ||
+      layout.globalTail.some((s) => s.trim()),
+  );
+}
+
+function citationNormalizerConfigured(): boolean {
+  return Boolean(
+    (import.meta.env.VITE_CITATION_NORMALIZER_URL as string | undefined)?.trim() || import.meta.env.DEV,
+  );
+}
+
+export function AssistantBubbleContent({ content, messageKey, isStreaming }: Props): ReactNode {
+  const embedded = useMemo(
+    () => stripEmbeddedCitationObjectsFromAssistantText(content.trim()),
+    [content],
+  );
+  const cleaned = useMemo(
+    () =>
+      embedded.displayText ? stripTrailingSourceCountLines(embedded.displayText) : '',
+    [embedded.displayText],
+  );
+  const layout = useMemo(() => {
+    const base = parseAssistantLayoutForExtraction(cleaned);
+    return {
+      ...base,
+      globalTail: [...base.globalTail, ...embedded.sourceLines],
+    };
+  }, [cleaned, embedded.sourceLines]);
+  const regexFallback = useMemo(() => {
+    const p = parseAssistantForCitations(cleaned);
+    if (!embedded.sourceLines.length) return p;
+    return {
+      ...p,
+      globalCitations: [...p.globalCitations, ...embedded.sourceLines],
+    };
+  }, [cleaned, embedded.sourceLines]);
+
+  const [geminiParsed, setGeminiParsed] = useState<ParsedAssistantStructure | null>(null);
+  const [extracting, setExtracting] = useState(false);
+  const reqSeq = useRef(0);
+
+  useLayoutEffect(() => {
+    if (isStreaming || !cleaned.trim()) return;
+    if (import.meta.env.VITE_AI_CITATIONS === 'false' || !citationNormalizerConfigured()) return;
+    setExtracting(true);
+  }, [isStreaming, cleaned]);
+
+  useEffect(() => {
+    setGeminiParsed(null);
+    if (isStreaming || !cleaned.trim()) {
+      setExtracting(false);
+      return;
+    }
+
+    if (import.meta.env.VITE_AI_CITATIONS === 'false' || !citationNormalizerConfigured()) {
+      setGeminiParsed(regexFallback);
+      setExtracting(false);
+      return;
+    }
+
+    const seq = ++reqSeq.current;
+    const ac = new AbortController();
+
+    void (async () => {
+      try {
+        const res = await fetchExtractedCitationsFromAssistant(
+          {
+            preamble: layout.preamble,
+            blocks: layout.blocksRaw,
+            globalTail: layout.globalTail,
+          },
+          ac.signal,
+        );
+        if (ac.signal.aborted || seq !== reqSeq.current) return;
+        if (res) {
+          setGeminiParsed(mergeGeminiCitationExtraction(layout, res));
+        } else {
+          setGeminiParsed(regexFallback);
+        }
+      } finally {
+        if (seq === reqSeq.current) setExtracting(false);
+      }
+    })();
+
+    return () => ac.abort();
+  }, [cleaned, layout, isStreaming, regexFallback]);
+
+  if (isStreaming || !content.trim()) {
+    return formatMessageBody(content, messageKey, 'assistant');
+  }
+
+  const structured = layoutWantsStructuredView(layout);
+  if (!structured) {
+    return formatMessageBody(stripAggregatedCitationFooter(cleaned), messageKey, 'assistant');
+  }
+
+  const aiOn =
+    import.meta.env.VITE_AI_CITATIONS !== 'false' && citationNormalizerConfigured();
+  const loadingSkeleton: ParsedAssistantStructure | null =
+    aiOn && extracting && geminiParsed === null
+      ? mergeGeminiCitationExtraction(
+          layout,
+          { blockCites: [], globalCitations: [] },
+          { preferEmptyGlobal: true },
+        )
+      : null;
+
+  const displayParsed = geminiParsed ?? loadingSkeleton ?? regexFallback;
+  const showResolving = loadingSkeleton !== null;
+
+  return renderStructuredMessage(displayParsed, messageKey, { resolvingNote: showResolving });
 }

@@ -74,7 +74,8 @@ export function splitCompoundCitationLine(line: string): string[] {
   });
 }
 
-function stripCitationLines(block: string): { body: string; cites: string[] } {
+/** Remove `Citation:` / list-style citation lines from block text; collects regex-parsed cites (legacy). */
+export function stripCitationLinesFromBlock(block: string): { body: string; cites: string[] } {
   const cites: string[] = [];
   const body = block.replace(CITATION_LINE_RE, (_m, g1: string) => {
     const t = (g1 || '').trim();
@@ -395,12 +396,12 @@ export function parseAssistantForCitations(content: string): ParsedAssistantStru
   const { preamble, blocks: rawBlocks } = splitNumberedBlocks(main);
 
   const blocks: CitationBlock[] = rawBlocks.map((rb) => {
-    const { body, cites } = stripCitationLines(rb);
+    const { body, cites } = stripCitationLinesFromBlock(rb);
     return { body, cites };
   });
 
   if (rawBlocks.length === 0) {
-    const { body, cites } = stripCitationLines(preamble);
+    const { body, cites } = stripCitationLinesFromBlock(preamble);
     if (cites.length) {
       return { preamble: '', blocks: [{ body, cites }], globalCitations: global };
     }
@@ -408,4 +409,18 @@ export function parseAssistantForCitations(content: string): ParsedAssistantStru
   }
 
   return { preamble, blocks, globalCitations: global };
+}
+
+/**
+ * Same structural split as {@link parseAssistantForCitations}, but keeps raw block strings
+ * (for Gemini citation extraction). `globalTail` is the trailing Citations/Sources footer split by `;`.
+ */
+export function parseAssistantLayoutForExtraction(cleanedContent: string): {
+  preamble: string;
+  blocksRaw: string[];
+  globalTail: string[];
+} {
+  const { main, global } = splitGlobalCitationTail(cleanedContent.trim());
+  const { preamble, blocks } = splitNumberedBlocks(main);
+  return { preamble, blocksRaw: blocks, globalTail: global };
 }
