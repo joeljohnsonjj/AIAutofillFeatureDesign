@@ -62,11 +62,119 @@ export function normalizeSectionList(value: unknown): string[] {
   return [];
 }
 
+const MAX_LOCATOR_PAGE_EXPAND = 150;
+
+/**
+ * Parse free-text obligation / assistant citation locators into pages, section labels, and optional .pdf name.
+ * Covers formats from the financial-extraction prompt, e.g.:
+ * `Page 5, Section 'Indemnification'`, `Pages 2-4`, `Article 8 — Rent`, trailing `(Lease.pdf)`.
+ */
+export function parseCitationLocatorString(locator: string): {
+  pageNumbers: number[];
+  section: string[];
+  pdfHint: string;
+} {
+  const text = (locator || '').replace(/\s+/g, ' ').trim();
+  if (!text) {
+    return { pageNumbers: [], section: [], pdfHint: '' };
+  }
+
+  const pdfMatch = text.match(/\(\s*([\w.-]+\.pdf)\s*\)/i) || text.match(/\b([\w.-]+\.pdf)\b/i);
+  const pdfHint = pdfMatch ? pdfMatch[1].trim() : '';
+
+  const pages: number[] = [];
+
+  const pushRange = (lo: number, hi: number) => {
+    const a = Math.min(lo, hi);
+    const b = Math.max(lo, hi);
+    const span = b - a + 1;
+    if (span <= MAX_LOCATOR_PAGE_EXPAND) {
+      for (let p = a; p <= b; p++) pages.push(p);
+    } else {
+      pages.push(a);
+    }
+  };
+
+  const range = text.match(/\bpages?\s*:?\s*(\d+)\s*[-–—]\s*(\d+)\b/i);
+  if (range) {
+    const lo = parseInt(range[1], 10);
+    const hi = parseInt(range[2], 10);
+    if (!Number.isNaN(lo) && !Number.isNaN(hi)) pushRange(lo, hi);
+  }
+
+  const pagesColon = text.match(/\bPages:\s*([^|]+?)(?:\s*\||$)/i);
+  if (pagesColon) {
+    for (const part of pagesColon[1].split(/[,;]/)) {
+      const t = part.trim();
+      if (!t) continue;
+      const r = t.match(/^(\d+)\s*[-–—]\s*(\d+)$/);
+      if (r) {
+        const lo = parseInt(r[1], 10);
+        const hi = parseInt(r[2], 10);
+        if (!Number.isNaN(lo) && !Number.isNaN(hi)) pushRange(lo, hi);
+      } else {
+        const n = parseInt(t, 10);
+        if (!Number.isNaN(n) && n > 0) pages.push(n);
+      }
+    }
+  }
+
+  for (const m of text.matchAll(/\bPage\s+(\d+)\b/gi)) {
+    const n = parseInt(m[1], 10);
+    if (!Number.isNaN(n)) pages.push(n);
+  }
+
+  const sections: string[] = [];
+  for (const m of text.matchAll(/\bSection\s+(['"])([^'"\n]+)\1/gi)) {
+    const s = m[2].trim();
+    if (s) sections.push(s);
+  }
+  if (!sections.length) {
+    const m = text.match(/\bSection\s+([^|;]+)/i);
+    if (m) {
+      const s = m[1].trim().replace(/^['"]|['"]$/g, '').trim();
+      if (s) sections.push(s);
+    }
+  }
+  const art = text.match(/\bArticle\s+([\d.a-z]+)\b/i);
+  if (art) sections.push(`Article ${art[1]}`);
+  const noHeading = /no\s+heading\s+provided/i.test(text);
+  if (noHeading && !sections.length) sections.push('No heading provided');
+
+  const uniqPages = [...new Set(pages)].sort((a, b) => a - b);
+  return { pageNumbers: uniqPages, section: sections, pdfHint };
+}
+
 function normalizeCitationItem(raw: unknown): CitationItem {
+  if (typeof raw === 'string') {
+    const loc = parseCitationLocatorString(raw);
+    return {
+      docId: loc.pdfHint || 'Unknown Document',
+      pageNumbers: loc.pageNumbers,
+      section: loc.section,
+    };
+  }
+
   const o = asRecord(raw) ?? {};
-  const docId = String(o.docId ?? o.document_id ?? 'Unknown Document');
+  const docFromFields = String(o.docId ?? o.document_id ?? o.document ?? o.sourceDocument ?? '').trim();
   const pageNumbers = normalizePageNumbers(o.pageNumbers ?? o.page_numbers);
   const section = normalizeSectionList(o.section ?? o.sections);
+
+  const citField = o.Citation ?? o.citation;
+  if (typeof citField === 'string' && citField.trim()) {
+    const loc = parseCitationLocatorString(citField.trim());
+    const docId =
+      docFromFields && docFromFields !== 'Unknown Document'
+        ? docFromFields
+        : loc.pdfHint || 'Unknown Document';
+    return {
+      docId,
+      pageNumbers: pageNumbers.length ? pageNumbers : loc.pageNumbers,
+      section: section.length ? section : loc.section,
+    };
+  }
+
+  const docId = docFromFields || 'Unknown Document';
   return { docId, pageNumbers, section };
 }
 
@@ -77,9 +185,13 @@ export function normalizeChatCitationObject(raw: unknown): CitationItem {
 
 /** One PDF source line for chat chips / parseCitationForPdf (combined pages + sections). */
 export function formatCitationItemAsSourceLine(cit: CitationItem): string {
+  let doc = String(cit.docId || '').trim();
+  if (doc && doc !== 'Unknown Document' && !/\.pdf$/i.test(doc)) {
+    doc = `${doc}.pdf`;
+  }
   const pages = cit.pageNumbers.length ? cit.pageNumbers.join(', ') : '';
   const sections = cit.section.length ? cit.section.join(', ') : '';
-  return `Document: ${cit.docId} | Pages: ${pages}${sections ? ` | Sections: ${sections}` : ''}`;
+  return `Document: ${doc} | Pages: ${pages}${sections ? ` | Sections: ${sections}` : ''}`;
 }
 
 function deriveDutyType(category: string | undefined, party: string, ownerLines: string[]): string {
@@ -119,8 +231,14 @@ export function normalizeBackendObligation(
   const reasoning = coerceStringArray(raw.Reasoning ?? raw.reasoning);
 
   const citationsRaw = raw.Citation ?? raw.citations ?? raw.citation;
-  const list = Array.isArray(citationsRaw) ? citationsRaw : [];
-  const Citation: CitationItem[] = list.map(normalizeCitationItem);
+  let Citation: CitationItem[];
+  if (typeof citationsRaw === 'string' && citationsRaw.trim()) {
+    Citation = [normalizeCitationItem({ Citation: citationsRaw.trim() })];
+  } else if (Array.isArray(citationsRaw)) {
+    Citation = citationsRaw.map(normalizeCitationItem);
+  } else {
+    Citation = [];
+  }
 
   const categoryFromRaw =
     typeof raw.category === 'string' && raw.category.trim() ? raw.category.trim() : undefined;
@@ -780,7 +898,7 @@ export function transformObligationToSnippet(obligation: BackendObligation, inde
   };
 }
 
-// ——— HEB Legal doc analyzer — `/api/v1/chat` ———
+// ——— Legal document chat — `/api/v1/chat` ———
 
 export type ChatRole = 'user' | 'assistant';
 

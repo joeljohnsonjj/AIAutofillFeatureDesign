@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import {
   CHAT_ACCENT_ON_LIGHT,
-  CHAT_ACCENT_ON_RED,
+  CHAT_LINK_ON_USER_BUBBLE,
   CHAT_TEXT_PRIMARY,
   CHAT_TEXT_SECONDARY,
 } from '../../constants/landRecord';
@@ -65,7 +65,7 @@ export function formatMessageBody(
   variant: 'assistant' | 'user'
 ): ReactNode {
   const lines = content.split('\n');
-  const accent = variant === 'user' ? CHAT_ACCENT_ON_RED : CHAT_ACCENT_ON_LIGHT;
+  const accent = variant === 'user' ? CHAT_LINK_ON_USER_BUBBLE : CHAT_ACCENT_ON_LIGHT;
   const quoteStyle =
     variant === 'user'
       ? { color: 'rgba(255,255,255,0.95)' }

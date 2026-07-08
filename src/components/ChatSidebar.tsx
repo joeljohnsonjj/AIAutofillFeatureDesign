@@ -10,6 +10,9 @@ import { chatQueryStream, chatReset } from '../services/apiService';
 import { AssistantBubbleContent } from './chat/AssistantBubbleContent';
 import { formatMessageBody } from './chat/chatFormatting';
 import {
+  BRAND_BLUE_DEEP,
+  BRAND_ORANGE,
+  BRAND_ORANGE_HOVER,
   CHAT_ASSISTANT_NAME,
   CHAT_BORDER,
   CHAT_CARD_BG,
@@ -18,8 +21,6 @@ import {
   CHAT_TEXT_SECONDARY,
   CHAT_USER_BUBBLE_BG,
   DEFAULT_LAND_RECORD_ID,
-  HEB_RED,
-  HEB_RED_HOVER,
 } from '../constants/landRecord';
 
 const SHEET_MS = 280;
@@ -406,7 +407,7 @@ export function ChatSidebar({
                 height: HEADER_H,
                 minHeight: HEADER_H,
                 maxHeight: HEADER_H,
-                backgroundColor: HEB_RED,
+                backgroundColor: BRAND_ORANGE,
                 borderTopLeftRadius: PANEL_RADIUS,
                 borderTopRightRadius: PANEL_RADIUS,
                 paddingLeft: 10,
@@ -550,8 +551,8 @@ export function ChatSidebar({
                                 width: 6,
                                 height: 6,
                                 borderRadius: 999,
-                                backgroundColor: HEB_RED,
-                                boxShadow: '0 0 0 2px rgba(220, 38, 38, 0.15)',
+                                backgroundColor: BRAND_ORANGE,
+                                boxShadow: '0 0 0 2px rgba(234, 88, 12, 0.2)',
                               }}
                             />
                           )}
@@ -563,7 +564,7 @@ export function ChatSidebar({
                                 height: 6,
                                 borderRadius: 999,
                                 backgroundColor: CHAT_USER_BUBBLE_BG,
-                                boxShadow: '0 0 0 2px rgba(0, 119, 204, 0.15)',
+                                boxShadow: '0 0 0 2px rgba(37, 99, 235, 0.22)',
                               }}
                             />
                           )}
@@ -583,10 +584,10 @@ export function ChatSidebar({
                               ? 'none'
                               : `1px solid ${CHAT_BORDER}`,
                             background: isUser 
-                              ? `linear-gradient(135deg, ${CHAT_USER_BUBBLE_BG} 0%, #005aa3 100%)` 
+                              ? `linear-gradient(135deg, ${CHAT_USER_BUBBLE_BG} 0%, ${BRAND_BLUE_DEEP} 100%)` 
                               : 'linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)',
                             boxShadow: isUser
-                              ? '0 10px 24px rgba(0, 119, 204, 0.28), 0 4px 10px rgba(0, 119, 204, 0.16)'
+                              ? '0 10px 24px rgba(37, 99, 235, 0.28), 0 4px 10px rgba(12, 27, 58, 0.18)'
                               : '0 10px 24px rgba(15, 23, 42, 0.08), 0 4px 10px rgba(15, 23, 42, 0.05)',
                             color: isUser ? '#FFFFFF' : CHAT_TEXT_PRIMARY,
                             textAlign: 'left',
@@ -598,7 +599,7 @@ export function ChatSidebar({
                             <span className="flex items-center gap-2">
                               <svg
                                 className="h-4 w-4 animate-spin"
-                                style={{ color: HEB_RED }}
+                                style={{ color: BRAND_ORANGE }}
                                 viewBox="0 0 24 24"
                                 aria-hidden="true"
                               >
@@ -608,7 +609,7 @@ export function ChatSidebar({
                                   d="M12 2a10 10 0 0 1 10 10h-3a7 7 0 0 0-7-7V2z"
                                 />
                               </svg>
-                              <span className="text-sm font-medium" style={{ color: HEB_RED }}>
+                              <span className="text-sm font-medium" style={{ color: BRAND_ORANGE }}>
                                 Thinking…
                               </span>
                             </span>
@@ -644,8 +645,8 @@ export function ChatSidebar({
                             width: 6,
                             height: 6,
                             borderRadius: 999,
-                            backgroundColor: HEB_RED,
-                            boxShadow: '0 0 0 2px rgba(220, 38, 38, 0.15)',
+                            backgroundColor: BRAND_ORANGE,
+                            boxShadow: '0 0 0 2px rgba(234, 88, 12, 0.2)',
                           }}
                         />
                         <span>Assistant</span>
@@ -680,14 +681,15 @@ export function ChatSidebar({
                 <div
                   className="flex-shrink-0 border-t px-4 py-3 text-xs rounded-b-lg"
                   style={{
-                    borderColor: 'rgba(238, 40, 36, 0.2)',
-                    background: 'linear-gradient(135deg, rgba(238, 40, 36, 0.06) 0%, rgba(238, 40, 36, 0.12) 100%)',
-                    color: '#7A1816',
+                    borderColor: 'rgba(234, 88, 12, 0.28)',
+                    background:
+                      'linear-gradient(135deg, rgba(234, 88, 12, 0.06) 0%, rgba(12, 27, 58, 0.06) 100%)',
+                    color: '#9A3412',
                     backdropFilter: 'blur(8px)',
                   }}
                 >
                   <div className="flex items-center gap-2">
-                    <svg className="h-3 w-3 text-red-500" viewBox="0 0 24 24" fill="currentColor">
+                    <svg className="h-3 w-3" style={{ color: BRAND_ORANGE }} viewBox="0 0 24 24" fill="currentColor">
                       <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
                     </svg>
                     {error}
@@ -725,8 +727,8 @@ export function ChatSidebar({
                     boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
                   }}
                   onFocus={(e) => {
-                    e.currentTarget.style.borderColor = HEB_RED;
-                    e.currentTarget.style.boxShadow = `0 0 0 3px rgba(220, 38, 38, 0.12), 0 2px 8px rgba(0, 0, 0, 0.1)`;
+                    e.currentTarget.style.borderColor = BRAND_ORANGE;
+                    e.currentTarget.style.boxShadow = `0 0 0 3px rgba(234, 88, 12, 0.15), 0 2px 8px rgba(0, 0, 0, 0.1)`;
                     e.currentTarget.style.transform = 'translateY(-1px)';
                   }}
                   onBlur={(e) => {
@@ -749,13 +751,13 @@ export function ChatSidebar({
                     background: loading || !input.trim()
                       ? 'linear-gradient(135deg, #9ca3af 0%, #6b7280 100%)'
                       : sendHovered
-                        ? `linear-gradient(135deg, ${HEB_RED_HOVER} 0%, #b91c1c 100%)`
-                        : `linear-gradient(135deg, ${HEB_RED} 0%, #b91c1c 100%)`,
+                        ? `linear-gradient(135deg, ${BRAND_ORANGE_HOVER} 0%, ${BRAND_BLUE_DEEP} 100%)`
+                        : `linear-gradient(135deg, ${BRAND_ORANGE} 0%, ${BRAND_BLUE_DEEP} 100%)`,
                     boxShadow: loading || !input.trim()
                       ? 'none'
                       : sendHovered
-                        ? '0 6px 20px rgba(220, 38, 38, 0.4), 0 2px 8px rgba(220, 38, 38, 0.2)'
-                        : '0 4px 16px rgba(220, 38, 38, 0.3), 0 2px 8px rgba(220, 38, 38, 0.1)',
+                        ? '0 6px 20px rgba(234, 88, 12, 0.35), 0 2px 8px rgba(12, 27, 58, 0.2)'
+                        : '0 4px 16px rgba(234, 88, 12, 0.3), 0 2px 8px rgba(12, 27, 58, 0.15)',
                     transition: 'all 0.2s ease',
                     transform: sendHovered && !loading && input.trim() ? 'translateY(-1px) scale(1.05)' : 'translateY(0) scale(1)',
                   }}

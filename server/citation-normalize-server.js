@@ -61,28 +61,50 @@ async function runGeminiExtract({ preamble, blocks, globalTail }) {
     globalTail,
   });
 
-  const prompt = `You extract commercial lease citation lines for a PDF viewer UI.
+  const prompt = `You extract PDF source lines for a legal land-document chat UI (source chips open a file at a page).
 
-The message is split for you:
-- "preamble": text before the first numbered item (1. 2. …) if any.
-- "blocks": array of length ${n}. Each string is one numbered section (may include bullets, sub-lists, and inline citation wording).
-- "globalTail": strings from a trailing "Citations:" / "Sources:" footer (already split on semicolons), if any. It may also include lines pre-normalized from structured backend objects { "docId", "pageNumbers" (comma-separated string), "section" (comma-separated locators) } in the form: Document: <file.pdf> | Pages: ... | Sections: ...
+Input shape:
+- preamble: text before the first numbered "1." / "2." block (if any).
+- blocks: array of length ${n}; each item is one numbered responsibility/answer block (may include bullets, JSON fragments, or inline citation text).
+- globalTail: zero or more strings from a trailing "Citations:" or "Sources:" footer. May be ONE long string with semicolons, parentheses, or mixed prose. May include lines already shaped like: Document: <file.pdf> | Pages: … | Sections: …
 
-Return ONLY valid JSON (no markdown):
+Your job: find every concrete PDF reference and page (or page range) that supports each block or the global/footer. Ignore prose that is not a locator.
+
+Output ONLY valid JSON (no markdown, no fences):
 {
   "blockCites": string[][],
   "globalCitations": string[]
 }
 
-Rules:
-- blockCites MUST be an array of exactly ${n} arrays (same order as "blocks").
-- For each numbered block, list every distinct source/citation that supports THAT block only. Each entry one line, prefer:
-  Document: <filename.pdf> | Page <n>[, Section <label>]
-  or Document: <file.pdf> | Pages <lo>-<hi> for ranges.
-- If a block has no sources, use [] for that index.
-- globalCitations: sources that apply to the whole answer, only appear in preamble, or come from the footer/global tail. Merge meaning from globalTail into proper citation lines when possible; you may expand or dedupe.
-- If nothing is citable, return empty arrays where appropriate.
-- Never output markdown fences.
+Hard rules:
+- blockCites MUST have exactly ${n} entries (arrays), same order as blocks.
+- Each citation line MUST be parseable by a simple viewer. Prefer EXACTLY this pattern when a .pdf filename is known or clearly implied in the same block/footer:
+  Document: <filename.pdf> | Page <n>
+  OR for a contiguous range only:
+  Document: <filename.pdf> | Pages <lo>-<hi>
+- If the assistant used plural list form, you may output ONE line:
+  Document: <file.pdf> | Pages: <comma-separated pages and/or hyphen ranges>   (example: Pages: 1, 3, 5-7)
+- After "Document: … |" you may append section context for humans ONLY as:
+  | Sections: <short label>   (omit if nothing reliable)
+- When the text names a .pdf once and then only "Page N" / "Pages …" / "Section …" clauses, REPEAT the same Document: filename on each line you emit.
+- If only page + section/article text appears (financial-extraction style), still emit Document: when ANY .pdf appears in that block, preamble, or globalTail; otherwise use the filename that is clearly the active lease/record for the whole answer if stated once (e.g. in the first line or footer); if truly unknown use: Document: Unknown.pdf | Page <n>  (only as last resort).
+
+Recognize ALL of these locator styles (non-exhaustive; combine as needed):
+- "Page 5, Section 'Indemnification'" / Page 12, Section "Insurance" / "Pages 4-6"
+- "Article 8", "ARTICLE V — RENT", "§ 2.3", "clause 7", "Paragraph discussing maintenance costs"
+- "No heading provided" with page numbers
+- "MTNNN.pdf, Page 1, Section 1(d) …; Page 3, Section 4(a) …" (one doc, many pages separated by ;)
+- "(LeaseName.pdf)" at end of a clause; "see Exhibit A (file.pdf)"
+- Structured JSON obligation fields embedded in text: "Citation": "…" with page/section inside the string
+- Backend-style: docId / pageNumbers / section fields in JSON or pseudo-JSON
+
+Do NOT invent page numbers or filenames not grounded in the input strings.
+
+Dedupe identical Document+Page lines within each block and within globalCitations.
+
+If a block has no citable PDF+page, use [] for that index.
+
+globalCitations: only whole-answer or footer-only sources; merge duplicate lines; do not duplicate a source that is already fully listed under every block unless it is footer-only.
 
 Input JSON:
 ${payload}`;
@@ -113,16 +135,21 @@ async function runGeminiNormalize(citations) {
   });
 
   const userPayload = JSON.stringify({ citations });
-  const prompt = `You normalize commercial lease citation snippets for a PDF viewer.
+  const prompt = `You normalize legal land-document citation snippets into one line each for a PDF viewer.
 
-Output rules:
-- Reply with ONLY valid JSON (no markdown fences): {"normalized": string[]}
+Output ONLY valid JSON (no markdown fences): {"normalized": string[]}
 - "normalized" MUST have exactly ${citations.length} entries in the same order as input.
-- Each string should be one concise citation line the app can parse. Prefer this pattern when you can infer a file:
-  Document: <filename.pdf> | Page <n>[, Section <label>]
-- For page ranges use: Document: <file.pdf> | Pages <lo>-<hi>
-- If the input already names a .pdf, keep that filename unless clearly wrong.
-- Never drop a citation: if unsure, return the input string unchanged for that index.
+
+Target format (choose the tightest that fits the input):
+- Document: <filename.pdf> | Page <n>
+- Document: <filename.pdf> | Pages <lo>-<hi>   (only for a single contiguous range)
+- Document: <filename.pdf> | Pages: <list>   (comma-separated pages and/or small ranges, e.g. 1, 3, 5-7)
+Optional: | Sections: <short heading or locator>
+
+Recognize the same free-text styles as extraction: "Page N, Section 'Title'", Articles, §, "No heading provided", trailing "(file.pdf)", semicolon-separated page clauses under one filename, and structured docId/pageNumbers/section blobs.
+
+Never drop a citation: if unsure, pass through the input string for that index unchanged.
+Never invent page numbers or filenames.
 
 Input:
 ${userPayload}`;

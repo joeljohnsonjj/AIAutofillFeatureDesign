@@ -1342,7 +1342,7 @@ export default function App() {
 
   return (
     <div className="min-h-full bg-gray-50">
-      {/* Shell already renders MainTopHeader (LOCATION HQ); back bar only */}
+      {/* Shell already renders MainTopHeader; back bar only */}
       <div className="border-b border-gray-200 bg-white px-6 py-3">
         <div className="max-w-7xl mx-auto">
           <button

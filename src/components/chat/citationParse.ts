@@ -219,6 +219,32 @@ export function parseCitationForPdf(raw: string): { documentName: string; pageNu
     const n = parseInt(m[1], 10);
     if (!Number.isNaN(n)) pages.push(n);
   }
+  const pagesLabel = text.match(/\bPages:\s*([^|]+?)(?:\s*\||$)/i);
+  if (pagesLabel) {
+    for (const part of pagesLabel[1].split(/[,;]/)) {
+      const t = part.trim();
+      if (!t) continue;
+      const sub = t.match(/^(\d+)\s*[-–—]\s*(\d+)$/);
+      if (sub) {
+        const lo = parseInt(sub[1], 10);
+        const hi = parseInt(sub[2], 10);
+        if (!Number.isNaN(lo) && !Number.isNaN(hi)) {
+          const a = Math.min(lo, hi);
+          const b = Math.max(lo, hi);
+          const span = b - a + 1;
+          const maxExpanded = 150;
+          if (span <= maxExpanded) {
+            for (let p = a; p <= b; p++) pages.push(p);
+          } else {
+            pages.push(a);
+          }
+        }
+      } else {
+        const n = parseInt(t, 10);
+        if (!Number.isNaN(n) && n > 0) pages.push(n);
+      }
+    }
+  }
   if (pages.length === 0) {
     const loose = [...text.matchAll(/(?:^|[\s,;|/])\s*p\.?\s*(\d{1,4})\b/gi)];
     for (const m of loose) {

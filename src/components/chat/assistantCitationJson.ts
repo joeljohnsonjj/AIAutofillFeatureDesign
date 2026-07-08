@@ -53,6 +53,8 @@ function recordToSourceLine(raw: unknown): string | null {
 /**
  * Find `Citation: [...]` or `citations: [...]` in assistant markdown, parse JSON arrays,
  * convert each object to a `Document: … | Pages: …` line, and remove the JSON from display text.
+ * Supports structured citation objects and financial-obligation rows where `Citation` is a
+ * free-text string (e.g. `Page 5, Section 'Indemnification'`).
  */
 export function stripEmbeddedCitationObjectsFromAssistantText(input: string): {
   displayText: string;
